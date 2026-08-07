@@ -360,11 +360,15 @@
   .login-gate.show{display:flex;}
   .login-card{text-align:center;max-width:340px;width:100%;}
   .login-logo{
-    display:flex;align-items:center;justify-content:center;gap:10px;
-    font-weight:800;font-size:22px;margin-bottom:16px;
+    display:flex;align-items:center;justify-content:center;gap:11px;
+    font-weight:800;font-size:32px;letter-spacing:-.02em;margin-bottom:8px;
   }
-  .login-logo .dot{width:11px;height:11px;border-radius:50%;background:var(--blue);}
-  .login-sub{color:var(--muted);font-size:14px;line-height:1.6;margin:0 0 28px;font-weight:500;}
+  .login-logo .dot{width:12px;height:12px;border-radius:50%;background:var(--blue);}
+  .login-tag{color:var(--text);font-size:15px;font-weight:700;margin:0 0 20px;}
+  .login-sub{color:var(--muted);font-size:13.5px;line-height:1.6;margin:0 0 28px;font-weight:500;}
+  .user-greeting{
+    display:none;margin-top:9px;font-size:12.5px;color:var(--muted);font-weight:600;
+  }
   .login-btn{
     width:100%;border:none;background:var(--blue);color:#fff;font-weight:700;font-size:15px;
     padding:14px;border-radius:14px;cursor:pointer;box-shadow:var(--shadow-blue);
@@ -385,7 +389,10 @@
 
   <!-- Sidebar -->
   <div class="sidebar">
-    <div class="logo"><span class="dot"></span>My Schedule</div>
+    <div>
+      <div class="logo"><span class="dot"></span>DDAKCAL</div>
+      <div class="user-greeting" id="userGreeting"></div>
+    </div>
 
     <div>
       <div class="cal-header">
@@ -534,8 +541,9 @@
 <!-- Login gate (shown only in cloud mode) -->
 <div class="login-gate" id="loginGate">
   <div class="login-card">
-    <div class="login-logo"><span class="dot"></span> My Schedule</div>
-    <p class="login-sub">일정을 클라우드에 저장하고<br>모든 기기에서 함께 보려면 로그인하세요.</p>
+    <div class="login-logo"><span class="dot"></span> DDAKCAL</div>
+    <p class="login-tag">나에게 딱 맞는 스케줄러</p>
+    <p class="login-sub">Google 계정으로 로그인하면<br>모든 기기에서 일정이 함께 보여요.</p>
     <button class="login-btn" id="googleSignInBtn"><span class="g">G</span> Google로 로그인</button>
   </div>
 </div>
@@ -640,15 +648,22 @@
     try{ db.enablePersistence({synchronizeTabs:true}); }catch(e){}
     cloudReady = true;
     const signOutBtn = document.getElementById("signOutBtn");
+    const greetEl = document.getElementById("userGreeting");
     firebase.auth().onAuthStateChanged(user=>{
       currentUser = user;
       if(user){
         hideLoginGate();
         if(signOutBtn) signOutBtn.style.display = "block";
+        if(greetEl){
+          const nm = user.displayName || (user.email ? user.email.split("@")[0] : "회원");
+          greetEl.textContent = `${nm}님, 환영합니다!`;
+          greetEl.style.display = "block";
+        }
         startCloudSync(user.uid);
       } else {
         if(cloudUnsub){ cloudUnsub(); cloudUnsub = null; }
         if(signOutBtn) signOutBtn.style.display = "none";
+        if(greetEl) greetEl.style.display = "none";
         showLoginGate();
       }
     });
