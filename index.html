@@ -3,16 +3,29 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>My Schedule</title>
+<title>DDAKCAL</title>
+<!-- 크롬 탭 아이콘 (파비콘) -->
+<link rel="icon" type="image/png" href="logo.png">
+<link rel="apple-touch-icon" href="logo.png">
+<!-- 링크 미리보기 (카톡·SNS 등에서 뜨는 카드) -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="DDAKCAL">
+<meta property="og:description" content="나에게 딱 맞는 스케줄러">
+<meta property="og:image" content="https://ddakcal.xyz/logo.png">
+<meta property="og:url" content="https://ddakcal.xyz">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="DDAKCAL">
+<meta name="twitter:description" content="나에게 딱 맞는 스케줄러">
+<meta name="twitter:image" content="https://ddakcal.xyz/logo.png">
 <style>
   /* ============================================================
      Clean blue — minimal daily schedule (reference-matched)
      ============================================================ */
   @import url('https://cdn.jsdelivr.net/gh/fonts-archive/Freesentation/Freesentation.css');
   :root{
-    --blue:#4b8ff5;
-    --blue-deep:#3a7de6;
-    --blue-soft:#eef4fe;
+    --blue:#f0728f;
+    --blue-deep:#e05a7b;
+    --blue-soft:#fdecf1;
     --bg:#ffffff;
     --card-soft:#f5f6f9;   /* flat light card */
     --text:#1b1e28;        /* near-black */
@@ -21,8 +34,8 @@
     --danger:#f2686b;
     --amber:#ffb84f;
     --radius:18px;
-    --shadow:0 10px 26px rgba(75,143,245,.10);
-    --shadow-blue:0 14px 30px rgba(75,143,245,.36);
+    --shadow:0 10px 26px rgba(240,114,143,.12);
+    --shadow-blue:0 14px 30px rgba(240,114,143,.38);
   }
   *{box-sizing:border-box;}
   body{
@@ -318,6 +331,9 @@
     outline:none;border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px var(--blue-soft);
   }
   .field textarea{resize:vertical;min-height:56px;}
+  .field-check{display:flex;align-items:center;gap:9px;}
+  .field-check input{width:auto;margin:0;cursor:pointer;transform:scale(1.15);accent-color:var(--blue);}
+  .field-check label{margin:0;cursor:pointer;color:var(--text);font-weight:600;font-size:13px;}
   .row2{display:flex;gap:10px;}
   .row2 .field{flex:1;}
   .color-picker{display:flex;gap:8px;flex-wrap:wrap;}
@@ -486,6 +502,14 @@
         <input type="time" id="taskTime">
       </div>
     </div>
+    <div class="field field-check">
+      <input type="checkbox" id="taskMultiDay">
+      <label for="taskMultiDay">여러 날에 걸친 일정 (여행 등)</label>
+    </div>
+    <div class="field" id="endDateField" style="display:none;">
+      <label>종료일</label>
+      <input type="date" id="taskEndDate">
+    </div>
     <div class="field">
       <label>설명</label>
       <textarea id="taskDesc" placeholder="세부 내용 (선택)"></textarea>
@@ -494,7 +518,7 @@
       <label>카테고리</label>
       <select id="taskCategory"></select>
     </div>
-    <div class="field">
+    <div class="field" id="repeatField">
       <label>반복</label>
       <select id="taskRepeatType">
         <option value="none">반복 안함</option>
@@ -569,6 +593,7 @@
       id: t.id,
       title: t.title || "",
       date: t.date,
+      endDate: t.endDate || "",
       time: t.time || "",
       desc: t.desc || "",
       category: t.category,
@@ -680,7 +705,11 @@
     if(task.repeat && task.repeat.until && dateStr > task.repeat.until) return false;
     if(task.skipDates && task.skipDates.includes(dateStr)) return false;
     const rep = task.repeat || {type:"none"};
-    if(rep.type === "none") return dateStr === task.date;
+    if(rep.type === "none"){
+      // 여러 날 일정이면 시작~종료 사이 모든 날에 표시 (dateStr >= task.date 는 위에서 보장)
+      const end = (task.endDate && task.endDate >= task.date) ? task.endDate : task.date;
+      return dateStr <= end;
+    }
     if(rep.type === "daily") return true;
     if(rep.type === "weekly"){
       const dow = new Date(dateStr+"T00:00:00").getDay();
@@ -708,6 +737,15 @@
     if(rep.type==="weekly") return "↻ 매주 " + (rep.days||[]).slice().sort().map(d=>WEEKDAYS_KO[d]).join(",") + " 반복";
     if(rep.type==="monthly") return "↻ 매월 반복";
     return "";
+  }
+  function multiDayLabel(t, dateStr){
+    const DAY = 86400000;
+    const start = new Date(t.date+"T00:00:00");
+    const end = new Date(t.endDate+"T00:00:00");
+    const cur = new Date(dateStr+"T00:00:00");
+    const total = Math.round((end-start)/DAY) + 1;
+    const idx = Math.round((cur-start)/DAY) + 1;
+    return `🧳 ${total-1}박 ${total}일 · ${idx}일차`;
   }
 
   // ---------- Sidebar mini calendar ----------
@@ -836,6 +874,7 @@
       const done = isDone(t, dateStr);
       const current = t.id===currentId;
       const isRepeating = t.repeat && t.repeat.type !== "none";
+      const isMulti = !!(t.endDate && t.endDate > t.date);
       const row = document.createElement("div");
       row.className = "task-row";
       row.innerHTML = `
@@ -853,6 +892,7 @@
           </div>
           ${t.desc ? `<div class="task-desc">${escapeHtml(t.desc)}</div>` : ''}
           ${isRepeating ? `<div class="repeat-tag">${repeatLabel(t.repeat)}</div>` : ''}
+          ${isMulti ? `<div class="repeat-tag" style="color:#2fa36f">${multiDayLabel(t, dateStr)}</div>` : ''}
           <div class="task-meta">
             <span class="cat-tag" style="background:${cat.color}22;color:${cat.color}">${escapeHtml(cat.name)}</span>
             <div class="task-actions">
@@ -933,6 +973,24 @@
   }
   repeatTypeSel.addEventListener("change", updateRepeatFieldsVisibility);
 
+  const multiDayCheck = document.getElementById("taskMultiDay");
+  const endDateField = document.getElementById("endDateField");
+  const repeatFieldEl = document.getElementById("repeatField");
+  function updateMultiDay(){
+    const on = multiDayCheck.checked;
+    endDateField.style.display = on ? "block" : "none";
+    repeatFieldEl.style.display = on ? "none" : "block";   // 여러 날 + 반복은 같이 안 씀
+    if(on){
+      repeatTypeSel.value = "none";
+      updateRepeatFieldsVisibility();
+      const sd = document.getElementById("taskDate").value;
+      const ed = document.getElementById("taskEndDate");
+      if(!ed.value && sd) ed.value = sd;   // 종료일 기본값 = 시작일
+      document.getElementById("taskDateLabel").textContent = "시작일";
+    }
+  }
+  multiDayCheck.addEventListener("change", updateMultiDay);
+
   function openTaskModal(id){
     fillCategorySelect();
     document.getElementById("modalTitle").textContent = id ? "일정 수정" : "일정 추가";
@@ -949,6 +1007,8 @@
       repeatTypeSel.value = rep.type;
       editingRepeatDays = (rep.days||[]).slice();
       document.getElementById("taskRepeatUntil").value = rep.until || "";
+      multiDayCheck.checked = !!(t.endDate && t.endDate > t.date);
+      document.getElementById("taskEndDate").value = t.endDate || "";
     } else {
       document.getElementById("taskId").value = "";
       document.getElementById("taskTitle").value = "";
@@ -959,9 +1019,12 @@
       repeatTypeSel.value = "none";
       editingRepeatDays = [selectedDate.getDay()];
       document.getElementById("taskRepeatUntil").value = "";
+      multiDayCheck.checked = false;
+      document.getElementById("taskEndDate").value = "";
     }
     renderWeekdayPicker();
     updateRepeatFieldsVisibility();
+    updateMultiDay();
     taskOverlay.classList.add("show");
     document.getElementById("taskTitle").focus();
   }
@@ -976,7 +1039,13 @@
     if(!title){ alert("제목을 입력해주세요."); return; }
     const id = document.getElementById("taskId").value;
     const date = document.getElementById("taskDate").value || fmt(selectedDate);
-    const repType = repeatTypeSel.value;
+    const multiDay = multiDayCheck.checked;
+    let endDate = "";
+    if(multiDay){
+      endDate = document.getElementById("taskEndDate").value || date;
+      if(endDate < date){ alert("종료일이 시작일보다 빠를 수 없어요."); return; }
+    }
+    const repType = multiDay ? "none" : repeatTypeSel.value;   // 여러 날 일정이면 반복 안 함
     let repDays = editingRepeatDays.slice();
     if(repType==="weekly" && repDays.length===0){
       repDays = [new Date(date+"T00:00:00").getDay()];
@@ -984,6 +1053,7 @@
     const data = {
       title,
       date,
+      endDate,
       time: document.getElementById("taskTime").value,
       desc: document.getElementById("taskDesc").value.trim(),
       category: taskCategorySel.value,
@@ -1216,7 +1286,7 @@
     if(isToday){
       const now = new Date();
       const nowA = (now.getHours() + now.getMinutes()/60)/24*360;
-      parts.push(`<path d="${ringArcPath(cx,cy,ringOuter,ringInner,0,nowA)}" fill="#4b8ff5"/>`);
+      parts.push(`<path d="${ringArcPath(cx,cy,ringOuter,ringInner,0,nowA)}" fill="#f0728f"/>`);
       parts.push(`<path d="${ringArcPath(cx,cy,ringOuter,ringInner,nowA,360)}" fill="#e4e7ee"/>`);
     } else {
       parts.push(`<path d="${fullRingPath(cx,cy,ringOuter,ringInner)}" fill="#e4e7ee" fill-rule="evenodd"/>`);
@@ -1258,7 +1328,7 @@
       const bpt = polar(cx,cy,R+16,a0);
       const norm = ((a0%360)+360)%360;
       const anchor = (norm>2 && norm<178) ? "start" : (norm>182 && norm<358 ? "end" : "middle");
-      parts.push(`<text x="${bpt.x.toFixed(2)}" y="${bpt.y.toFixed(2)}" text-anchor="${anchor}" font-size="10.5" font-weight="600" fill="#4b8ff5" dominant-baseline="middle">${seg.task.time}</text>`);
+      parts.push(`<text x="${bpt.x.toFixed(2)}" y="${bpt.y.toFixed(2)}" text-anchor="${anchor}" font-size="10.5" font-weight="600" fill="#f0728f" dominant-baseline="middle">${seg.task.time}</text>`);
     });
 
     [0,6,12,18].forEach(h=>{
