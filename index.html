@@ -588,23 +588,64 @@
     {id:"personal", name:"개인", color:"#a06cf2"},
   ];
 
+  // ---- 신뢰 경계 새니타이즈(가져오기/클라우드) ----
+  const MAX_TASKS = 5000, MAX_CATS = 200;
+  const REPEAT_TYPES = ["none","daily","weekly","monthly"];
+  const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
+  const TIME_RE = /^\d{2}:\d{2}$/;
+  function safeStr(v, max){ return (typeof v==="string" ? v : "").slice(0, max); }
+  function safeId(v){
+    const s = String(v==null ? "" : v).replace(/[^A-Za-z0-9_-]/g, "").slice(0, 64);
+    return s || uid();
+  }
+  // style 속성에 들어가므로 hex 색상만 허용, 아니면 기본색
+  function safeColor(v){
+    return (typeof v==="string" && /^#[0-9a-fA-F]{3,8}$/.test(v)) ? v : PALETTE[0];
+  }
+  function safeDate(v){ return (typeof v==="string" && DATE_RE.test(v)) ? v : ""; }
+  function safeDateArr(a){
+    return Array.isArray(a) ? a.filter(d=>typeof d==="string" && DATE_RE.test(d)).slice(0, 2000) : [];
+  }
+  function safeRepeat(r){
+    if(!r || typeof r!=="object") return {type:"none", days:[], until:""};
+    const type = REPEAT_TYPES.includes(r.type) ? r.type : "none";
+    const days = Array.isArray(r.days)
+      ? [...new Set(r.days.map(Number).filter(n=>Number.isInteger(n) && n>=0 && n<=6))]
+      : [];
+    return { type, days, until: safeDate(r.until) };
+  }
+
   function normalizeTask(t){
+    t = (t && typeof t==="object") ? t : {};
+    const date = safeDate(t.date);
     return {
-      id: t.id,
-      title: t.title || "",
-      date: t.date,
-      endDate: t.endDate || "",
-      time: t.time || "",
-      desc: t.desc || "",
-      category: t.category,
-      repeat: t.repeat || {type:"none", days:[], until:""},
-      doneDates: t.doneDates || (t.done ? [t.date] : []),
-      skipDates: t.skipDates || [],
+      id: safeId(t.id),
+      title: safeStr(t.title, 200),
+      date: date,
+      endDate: safeDate(t.endDate),
+      time: (typeof t.time==="string" && TIME_RE.test(t.time)) ? t.time : "",
+      desc: safeStr(t.desc, 2000),
+      category: safeId(t.category),
+      repeat: safeRepeat(t.repeat),
+      doneDates: t.doneDates ? safeDateArr(t.doneDates) : (t.done && date ? [date] : []),
+      skipDates: safeDateArr(t.skipDates),
     };
+  }
+  function normalizeCategory(c){
+    c = (c && typeof c==="object") ? c : {};
+    return { id: safeId(c.id), name: safeStr(c.name, 60) || "카테고리", color: safeColor(c.color) };
+  }
+  // 외부에서 들어온 {tasks, categories} 전체를 정제
+  function sanitizeData(data){
+    const out = {};
+    if(Array.isArray(data && data.tasks)) out.tasks = data.tasks.slice(0, MAX_TASKS).map(normalizeTask);
+    if(Array.isArray(data && data.categories) && data.categories.length)
+      out.categories = data.categories.slice(0, MAX_CATS).map(normalizeCategory);
+    return out;
   }
 
   let tasks = (JSON.parse(localStorage.getItem(LS_TASKS) || "[]")).map(normalizeTask);
-  let categories = JSON.parse(localStorage.getItem(LS_CATS) || "null") || DEFAULT_CATS.slice();
+  let categories = (JSON.parse(localStorage.getItem(LS_CATS) || "null") || DEFAULT_CATS.slice()).map(normalizeCategory);
   let activeCatFilter = new Set(categories.map(c=>c.id)); // all on by default
   let selectedDate = new Date();
   let calViewDate = new Date();
@@ -656,9 +697,9 @@
     if(cloudUnsub) cloudUnsub();
     cloudUnsub = db.collection("users").doc(uid).onSnapshot(doc=>{
       if(!doc.exists){ cloudSaveSoon(); return; } // 첫 로그인: 지금 로컬 데이터를 클라우드에 올림
-      const data = doc.data() || {};
-      if(Array.isArray(data.tasks)) tasks = data.tasks.map(normalizeTask);
-      if(Array.isArray(data.categories) && data.categories.length) categories = data.categories;
+      const clean = sanitizeData(doc.data() || {});
+      if(clean.tasks) tasks = clean.tasks;
+      if(clean.categories) categories = clean.categories;
       activeCatFilter = new Set(categories.map(c=>c.id));
       renderAll();
     }, err=>console.warn("동기화 오류:", err));
@@ -1132,12 +1173,17 @@
   document.getElementById("importFile").addEventListener("change", (e)=>{
     const file = e.target.files[0];
     if(!file) return;
+    if(file.size > 5 * 1024 * 1024){ alert("파일이 너무 커요. (최대 5MB)"); e.target.value=""; return; }
     const reader = new FileReader();
     reader.onload = ()=>{
       try{
         const data = JSON.parse(reader.result);
-        if(Array.isArray(data.tasks)) tasks = data.tasks.map(normalizeTask);
-        if(Array.isArray(data.categories)) categories = data.categories;
+        if(!data || typeof data!=="object" || (!Array.isArray(data.tasks) && !Array.isArray(data.categories))){
+          alert("올바른 백업 파일이 아니에요."); return;
+        }
+        const clean = sanitizeData(data);
+        if(clean.tasks) tasks = clean.tasks;
+        if(clean.categories) categories = clean.categories;
         activeCatFilter = new Set(categories.map(c=>c.id));
         saveTasks(); saveCats(); renderAll();
         alert("가져오기 완료!");
