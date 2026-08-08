@@ -24,6 +24,8 @@
 <meta name="twitter:title" content="DDAKCAL">
 <meta name="twitter:description" content="나에게 딱 맞는 스케줄러">
 <meta name="twitter:image" content="https://ddakcal.xyz/logo.png">
+<!-- 테마: 깜빡임 방지를 위해 스타일 적용 전에 미리 설정 -->
+<script>try{var _t=localStorage.getItem('ddakcal_theme');if(_t)document.documentElement.setAttribute('data-theme',_t);}catch(e){}</script>
 <style>
   /* ============================================================
      Clean blue — minimal daily schedule (reference-matched)
@@ -43,7 +45,47 @@
     --radius:18px;
     --shadow:0 10px 26px rgba(240,114,143,.12);
     --shadow-blue:0 14px 30px rgba(240,114,143,.38);
+    --surface:#ffffff;
+    --surface-hover:#eef0f4;
   }
+  /* ===== 다크 테마 (data-theme="dark") ===== */
+  :root[data-theme="dark"]{
+    --blue-soft:#3a2530;
+    --bg:#0e0f13;
+    --card-soft:#1a1c22;
+    --text:#f2f3f5;
+    --muted:#9096a6;
+    --border:#2a2d36;
+    --shadow:0 10px 26px rgba(0,0,0,.45);
+    --shadow-blue:0 14px 30px rgba(240,114,143,.30);
+    --surface:#1f2129;
+    --surface-hover:#262933;
+    color-scheme:dark;
+  }
+  /* 흰색으로 하드코딩됐던 표면들 — 다크에서만 덮어씀 */
+  :root[data-theme="dark"] .vt-btn.active{background:var(--surface);box-shadow:0 3px 10px rgba(0,0,0,.4);}
+  :root[data-theme="dark"] .node{background:var(--surface);}
+  :root[data-theme="dark"] .check{border-color:#3a3e4a;}
+  :root[data-theme="dark"] .icon-btn:hover{background:var(--surface-hover);}
+  :root[data-theme="dark"] .cal-day.other{color:#4a4e5a;}
+  :root[data-theme="dark"] .cat-item .cat-del:hover{background:var(--surface);}
+  :root[data-theme="dark"] .m-head,
+  :root[data-theme="dark"] .m-cell{background:var(--surface);}
+  :root[data-theme="dark"] .m-cell:hover{background:var(--surface-hover);}
+  :root[data-theme="dark"] .m-cell.other{background:#171921;}
+  :root[data-theme="dark"] .m-cell.other .m-daynum{color:#4a4e5a;}
+  :root[data-theme="dark"] .modal{background:var(--surface);box-shadow:0 24px 60px rgba(0,0,0,.6);}
+  :root[data-theme="dark"] .field input[type=text],
+  :root[data-theme="dark"] .field input[type=time],
+  :root[data-theme="dark"] .field input[type=date],
+  :root[data-theme="dark"] .field textarea,
+  :root[data-theme="dark"] .field select{background:var(--card-soft);color:var(--text);}
+  :root[data-theme="dark"] .field input:focus,
+  :root[data-theme="dark"] .field textarea:focus,
+  :root[data-theme="dark"] .field select:focus{background:var(--surface);}
+  :root[data-theme="dark"] .btn-danger{background:var(--surface);}
+  :root[data-theme="dark"] .login-gate{background:var(--bg);}
+  :root[data-theme="dark"] ::-webkit-scrollbar-thumb{background:#3a3e4a;}
   *{box-sizing:border-box;}
   body{
     margin:0;
@@ -131,6 +173,13 @@
     color:var(--muted);border-radius:11px;padding:9px;font-size:12.5px;cursor:pointer;font-weight:600;
   }
   .add-cat-btn:hover{border-color:var(--blue);color:var(--blue);}
+  .logo-row{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .theme-toggle{
+    border:1.5px solid var(--border);background:var(--card-soft);cursor:pointer;
+    width:34px;height:34px;border-radius:10px;font-size:16px;line-height:1;flex:none;
+    display:flex;align-items:center;justify-content:center;transition:background .12s ease;
+  }
+  .theme-toggle:hover{background:var(--surface-hover);}
   .sidebar-footer{margin-top:auto;display:flex;gap:8px;}
   .ghost-btn{
     flex:1;border:none;background:var(--card-soft);color:var(--muted);
@@ -308,6 +357,9 @@
   }
   .m-event .et{font-weight:800;margin-right:4px;opacity:.85;}
   .m-more{font-size:11px;color:var(--muted);font-weight:700;padding:0 7px;}
+  /* 월간 뷰: 달력 아래 그날 일정 리스트 헤더 */
+  .month-daylist-head{margin:26px 0 16px;font-size:17px;font-weight:800;color:var(--text);}
+  #monthDayList{position:relative;}
 
   @media (max-width:720px){
     .m-cell{min-height:74px;padding:5px 4px;}
@@ -383,6 +435,8 @@
     .sidebar{border-right:none;border-bottom:1px solid var(--border);}
     .main{padding:24px 20px;}
     .date-block h1{font-size:32px;}
+    /* 모바일: 큰 월간 달력이 있으니 사이드바 미니 달력은 숨김(중복 방지) */
+    #miniCalBlock{display:none;}
   }
 
   *:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
@@ -433,11 +487,14 @@
   <!-- Sidebar -->
   <div class="sidebar">
     <div>
-      <div class="logo"><span class="dot"></span>DDAKCAL</div>
+      <div class="logo-row">
+        <div class="logo"><span class="dot"></span>DDAKCAL</div>
+        <button class="theme-toggle" id="themeToggle" title="다크/라이트 전환" aria-label="테마 전환">🌙</button>
+      </div>
       <div class="user-greeting" id="userGreeting"></div>
     </div>
 
-    <div>
+    <div id="miniCalBlock">
       <div class="cal-header">
         <div class="month" id="calMonthLabel"></div>
         <div class="cal-nav">
@@ -480,16 +537,16 @@
 
     <div class="view-toggle">
       <button class="vt-btn" data-view="chart">일과표</button>
-      <button class="vt-btn active" data-view="timeline">타임라인</button>
-      <button class="vt-btn" data-view="month">월간</button>
+      <button class="vt-btn" data-view="timeline">타임라인</button>
+      <button class="vt-btn active" data-view="month">월간</button>
     </div>
 
-    <div id="timelineView">
+    <div id="timelineView" style="display:none;">
       <div class="week-strip" id="weekStrip"></div>
       <div class="timeline" id="timeline"></div>
     </div>
 
-    <div id="monthView" style="display:none;">
+    <div id="monthView">
       <div class="month-bar">
         <div class="month-title" id="monthTitle"></div>
         <div class="month-nav">
@@ -499,6 +556,8 @@
         </div>
       </div>
       <div class="month-grid" id="monthGrid"></div>
+      <div class="month-daylist-head" id="monthDayHead"></div>
+      <div class="timeline" id="monthDayList"></div>
     </div>
 
     <div id="chartView" style="display:none;">
@@ -704,7 +763,7 @@
   let calViewDate = new Date();
   let editingCatColor = PALETTE[0];
   let editingRepeatDays = [];
-  let currentView = "timeline"; // 'timeline' | 'chart'
+  let currentView = "month"; // 'timeline' | 'chart' | 'month'
 
   function fmt(d){ // yyyy-mm-dd local
     const y=d.getFullYear(), m=String(d.getMonth()+1).padStart(2,"0"), day=String(d.getDate()).padStart(2,"0");
@@ -926,7 +985,7 @@
       item.innerHTML = `<span class="cat-swatch" style="background:${c.color}"></span><span class="name">${escapeHtml(c.name)}</span><span class="cnt">${count}</span><button class="cat-del" title="카테고리 삭제">✕</button>`;
       item.addEventListener("click", ()=>{
         if(activeCatFilter.has(c.id)) activeCatFilter.delete(c.id); else activeCatFilter.add(c.id);
-        renderCatList(); renderTimeline(); if(currentView==="month") renderMonth();
+        renderCatList(); renderTimeline(); if(currentView==="month"){ renderMonth(); renderMonthList(); }
       });
       item.querySelector(".cat-del").addEventListener("click", (e)=>{
         e.stopPropagation();
@@ -978,15 +1037,16 @@
 
   // ---------- Timeline ----------
   const timeline = document.getElementById("timeline");
-  function renderTimeline(){
-    timeline.innerHTML = "";
+  function renderTimeline(cont){
+    cont = cont || timeline;   // 어느 영역에 그릴지 (기본: 타임라인 뷰)
+    cont.innerHTML = "";
     const dateStr = fmt(selectedDate);
     const dayTasks = tasksForDate(dateStr)
       .filter(t=>activeCatFilter.has(t.category))
       .sort((a,b)=> (a.time||"99:99").localeCompare(b.time||"99:99"));
 
     if(dayTasks.length===0){
-      timeline.innerHTML = `<div class="empty-state"><div class="big">🗓️</div>이 날짜에 등록된 일정이 없어요.</div>`;
+      cont.innerHTML = `<div class="empty-state"><div class="big">🗓️</div>이 날짜에 등록된 일정이 없어요.</div>`;
       return;
     }
 
@@ -1033,19 +1093,19 @@
           </div>
         </div>
       `;
-      timeline.appendChild(row);
+      cont.appendChild(row);
     });
 
-    timeline.querySelectorAll(".check").forEach(el=>{
+    cont.querySelectorAll(".check").forEach(el=>{
       el.addEventListener("click", ()=>{
         const t = tasks.find(x=>x.id===el.dataset.id);
-        toggleDone(t, dateStr); saveTasks(); renderTimeline(); renderMiniCal();
+        toggleDone(t, dateStr); saveTasks(); renderTimeline(cont); renderMiniCal();
       });
     });
-    timeline.querySelectorAll(".edit").forEach(el=>{
+    cont.querySelectorAll(".edit").forEach(el=>{
       el.addEventListener("click", ()=> openTaskModal(el.dataset.id));
     });
-    timeline.querySelectorAll(".skip").forEach(el=>{
+    cont.querySelectorAll(".skip").forEach(el=>{
       el.addEventListener("click", ()=>{
         const t = tasks.find(x=>x.id===el.dataset.id);
         if(confirm("이 날짜의 일정만 제외할까요? (다른 반복 날짜는 유지돼요)")){
@@ -1055,7 +1115,7 @@
         }
       });
     });
-    timeline.querySelectorAll(".del").forEach(el=>{
+    cont.querySelectorAll(".del").forEach(el=>{
       el.addEventListener("click", ()=>{
         const t = tasks.find(x=>x.id===el.dataset.id);
         const msg = (t.repeat && t.repeat.type!=="none") ? "반복 일정 전체를 삭제할까요? (모든 날짜에서 사라져요)" : "이 일정을 삭제할까요?";
@@ -1325,7 +1385,7 @@
     document.getElementById("monthView").style.display    = view==="month"    ? "block" : "none";
     document.getElementById("chartView").style.display    = view==="chart"    ? "block" : "none";
     if(view==="chart") renderChart();
-    if(view==="month") renderMonth();
+    if(view==="month"){ renderMonth(); renderMonthList(); }
     if(view==="timeline") renderTimeline();
   }
   document.querySelectorAll(".vt-btn").forEach(btn=>{
@@ -1385,11 +1445,19 @@
         cell.appendChild(more);
       }
       cell.addEventListener("click", ()=>{
+        // 달력은 그대로 두고, 아래에 그날 일정만 갱신
         selectedDate = new Date(d); calViewDate = new Date(d);
-        switchView("timeline"); renderAll();
+        renderMonth(); renderMonthList(); renderMiniCal(); renderHeader();
       });
       monthGrid.appendChild(cell);
     }
+  }
+  // 월간 뷰: 달력 아래 "선택한 날 일정" 리스트
+  const monthDayListEl = document.getElementById("monthDayList");
+  function renderMonthList(){
+    const head = document.getElementById("monthDayHead");
+    head.textContent = selectedDate.toLocaleDateString("ko-KR",{month:"long",day:"numeric",weekday:"long"});
+    renderTimeline(monthDayListEl);
   }
   document.getElementById("monthPrev").addEventListener("click", ()=>{
     calViewDate.setMonth(calViewDate.getMonth()-1); renderMonth(); renderMiniCal();
@@ -1442,6 +1510,11 @@
 
     const cx=250, cy=250, R=185, ringOuter=207, ringInner=196;
     const parts = [];
+    // 테마별 색 (다크에서 흰 배경/검은 글자 → 어둡게)
+    const dark = document.documentElement.getAttribute("data-theme")==="dark";
+    const chartFace = dark ? "#1f2129" : "#ffffff";
+    const chartRingBg = dark ? "#2a2d36" : "#e4e7ee";
+    const chartText = dark ? "#f2f3f5" : "#1b1e28";
 
     // base ring (always drawn, even with no tasks, so the wheel is never blank)
     const isToday = sameDay(selectedDate, new Date());
@@ -1449,12 +1522,12 @@
       const now = new Date();
       const nowA = (now.getHours() + now.getMinutes()/60)/24*360;
       parts.push(`<path d="${ringArcPath(cx,cy,ringOuter,ringInner,0,nowA)}" fill="#f0728f"/>`);
-      parts.push(`<path d="${ringArcPath(cx,cy,ringOuter,ringInner,nowA,360)}" fill="#e4e7ee"/>`);
+      parts.push(`<path d="${ringArcPath(cx,cy,ringOuter,ringInner,nowA,360)}" fill="${chartRingBg}"/>`);
     } else {
-      parts.push(`<path d="${fullRingPath(cx,cy,ringOuter,ringInner)}" fill="#e4e7ee" fill-rule="evenodd"/>`);
+      parts.push(`<path d="${fullRingPath(cx,cy,ringOuter,ringInner)}" fill="${chartRingBg}" fill-rule="evenodd"/>`);
     }
     // empty face circle underneath slices, so unscheduled hours read as blank, not missing
-    parts.push(`<circle cx="${cx}" cy="${cy}" r="${R}" fill="#ffffff"/>`);
+    parts.push(`<circle cx="${cx}" cy="${cy}" r="${R}" fill="${chartFace}"/>`);
 
     let segs = [];
     if(timed.length===1){
@@ -1478,7 +1551,7 @@
       const cat = catById(seg.task.category);
       const a0 = seg.startH/24*360;
       const a1 = seg.endH/24*360;
-      parts.push(`<path d="${pieSlicePath(cx,cy,R,a0,a1)}" fill="${cat.color}" stroke="#ffffff" stroke-width="1.5"/>`);
+      parts.push(`<path d="${pieSlicePath(cx,cy,R,a0,a1)}" fill="${cat.color}" stroke="${chartFace}" stroke-width="1.5"/>`);
 
       let mid = (a0+a1)/2;
       const labelR = R*0.62;
@@ -1497,7 +1570,7 @@
       const a = h/24*360;
       const pt = polar(cx,cy,R+38,a);
       const label = h===0 ? "24" : String(h);
-      parts.push(`<text x="${pt.x.toFixed(2)}" y="${pt.y.toFixed(2)}" text-anchor="middle" dominant-baseline="middle" font-size="16" font-weight="800" fill="#1b1e28">${label}</text>`);
+      parts.push(`<text x="${pt.x.toFixed(2)}" y="${pt.y.toFixed(2)}" text-anchor="middle" dominant-baseline="middle" font-size="16" font-weight="800" fill="${chartText}">${label}</text>`);
     });
 
     chartWrapEl.innerHTML = `<svg viewBox="0 0 500 500" width="100%" style="max-width:520px;display:block;">${parts.join("")}</svg>`;
@@ -1521,7 +1594,7 @@
     renderHeader();
     renderTimeline();
     if(currentView==="chart") renderChart();
-    if(currentView==="month") renderMonth();
+    if(currentView==="month"){ renderMonth(); renderMonthList(); }
   }
 
   // ---------- 알림 (브라우저 팝업) ----------
@@ -1554,6 +1627,24 @@
     });
   }
   if("Notification" in window) setInterval(checkReminders, 30000);
+
+  // ---------- 테마 (라이트/다크 전환) ----------
+  const THEME_KEY = "ddakcal_theme";
+  function applyTheme(t){
+    document.documentElement.setAttribute("data-theme", t);
+    const btn = document.getElementById("themeToggle");
+    if(btn) btn.textContent = (t==="dark") ? "☀️" : "🌙";
+    if(currentView==="chart") renderChart();   // 차트 색 갱신
+  }
+  (function initTheme(){
+    applyTheme(localStorage.getItem(THEME_KEY) || "light");
+    const btn = document.getElementById("themeToggle");
+    if(btn) btn.addEventListener("click", ()=>{
+      const next = (document.documentElement.getAttribute("data-theme")==="dark") ? "light" : "dark";
+      localStorage.setItem(THEME_KEY, next);
+      applyTheme(next);
+    });
+  })();
 
   renderAll();
   if(CLOUD_ENABLED){ showLoginGate(); initCloud(); }
