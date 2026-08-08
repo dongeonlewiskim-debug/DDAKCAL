@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <title>DDAKCAL</title>
 <!-- 크롬 탭 아이콘 (파비콘) -->
 <link rel="icon" type="image/png" href="logo.png">
@@ -338,6 +338,12 @@
     outline:none;border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px var(--blue-soft);
   }
   .field textarea{resize:vertical;min-height:56px;}
+  /* 모바일(아이폰)에서 입력칸 탭할 때 자동 확대 방지: 글자 16px 이상이면 확대 안 됨 */
+  @media (max-width:768px){
+    .field input[type=text],.field input[type=time],.field input[type=date],.field textarea,.field select{
+      font-size:16px;
+    }
+  }
   .field-check{display:flex;align-items:center;gap:9px;}
   .field-check input{width:auto;margin:0;cursor:pointer;transform:scale(1.15);accent-color:var(--blue);}
   .field-check label{margin:0;cursor:pointer;color:var(--text);font-weight:600;font-size:13px;}
