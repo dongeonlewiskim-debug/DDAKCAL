@@ -7,6 +7,13 @@
 <!-- 크롬 탭 아이콘 (파비콘) -->
 <link rel="icon" type="image/png" href="logo.png">
 <link rel="apple-touch-icon" href="logo.png">
+<!-- PWA (홈 화면 설치 / 앱처럼 구동) -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#f0728f">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="DDAKCAL">
 <!-- 링크 미리보기 (카톡·SNS 등에서 뜨는 카드) -->
 <meta property="og:type" content="website">
 <meta property="og:title" content="DDAKCAL">
@@ -336,6 +343,16 @@
   .field-check label{margin:0;cursor:pointer;color:var(--text);font-weight:600;font-size:13px;}
   .row2{display:flex;gap:10px;}
   .row2 .field{flex:1;}
+  /* 일정 모달 – 제목+중요 / 일시(시작~종료) */
+  .title-row{display:flex;gap:10px;align-items:center;}
+  .title-row input{flex:1;min-width:0;}
+  .imp-check{display:flex;align-items:center;gap:6px;white-space:nowrap;margin:0;
+    font-size:13px;font-weight:700;color:var(--text);cursor:pointer;}
+  .imp-check input{width:auto;margin:0;transform:scale(1.15);accent-color:var(--danger);cursor:pointer;}
+  .dt-line{display:flex;gap:10px;}
+  .dt-line > input{flex:1;min-width:0;}
+  .dt-tilde{text-align:center;color:var(--muted);font-weight:800;margin:7px 0;font-size:13px;}
+  .task-imp{color:var(--danger);font-weight:900;margin-right:4px;}
   .color-picker{display:flex;gap:8px;flex-wrap:wrap;}
   .swatch-opt{
     width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent;
@@ -391,6 +408,9 @@
     display:flex;align-items:center;justify-content:center;gap:10px;
   }
   .login-btn:hover{background:var(--blue-deep);}
+  .keep-login{display:flex;align-items:center;justify-content:center;gap:7px;
+    margin-top:16px;font-size:13px;font-weight:600;color:var(--muted);cursor:pointer;}
+  .keep-login input{width:auto;margin:0;transform:scale(1.1);accent-color:var(--blue);cursor:pointer;}
   .login-btn .g{
     background:#fff;color:var(--blue);width:22px;height:22px;border-radius:50%;
     display:flex;align-items:center;justify-content:center;font-weight:800;font-size:14px;
@@ -490,29 +510,30 @@
     <input type="hidden" id="taskId">
     <div class="field">
       <label>제목</label>
-      <input type="text" id="taskTitle" placeholder="예: 팀 미팅">
-    </div>
-    <div class="row2">
-      <div class="field">
-        <label id="taskDateLabel">날짜</label>
-        <input type="date" id="taskDate">
+      <div class="title-row">
+        <input type="text" id="taskTitle" placeholder="예: 팀 미팅">
+        <label class="imp-check"><input type="checkbox" id="taskImportant"> 중요</label>
       </div>
-      <div class="field">
-        <label>시간</label>
-        <input type="time" id="taskTime">
+    </div>
+    <div class="field">
+      <label>장소</label>
+      <input type="text" id="taskLocation" placeholder="예: 강남역 스타벅스 (선택)">
+    </div>
+    <div class="field">
+      <label id="taskDateLabel">일시</label>
+      <div class="dt-line">
+        <input type="date" id="taskDate">
+        <input type="time" id="taskTime" class="timeInput">
+      </div>
+      <div class="dt-tilde">~</div>
+      <div class="dt-line">
+        <input type="date" id="taskEndDate">
+        <input type="time" id="taskEndTime" class="timeInput">
       </div>
     </div>
     <div class="field field-check">
-      <input type="checkbox" id="taskMultiDay">
-      <label for="taskMultiDay">여러 날에 걸친 일정 (여행 등)</label>
-    </div>
-    <div class="field" id="endDateField" style="display:none;">
-      <label>종료일</label>
-      <input type="date" id="taskEndDate">
-    </div>
-    <div class="field">
-      <label>설명</label>
-      <textarea id="taskDesc" placeholder="세부 내용 (선택)"></textarea>
+      <input type="checkbox" id="taskAllDay">
+      <label for="taskAllDay">종일</label>
     </div>
     <div class="field">
       <label>카테고리</label>
@@ -534,6 +555,21 @@
     <div class="field" id="repeatUntilField" style="display:none;">
       <label>반복 종료일 (선택 — 비워두면 계속 반복)</label>
       <input type="date" id="taskRepeatUntil">
+    </div>
+    <div class="field">
+      <label>알림</label>
+      <select id="taskRemind">
+        <option value="none">알림 없음</option>
+        <option value="0">일정 시각에</option>
+        <option value="10">10분 전</option>
+        <option value="30">30분 전</option>
+        <option value="60">1시간 전</option>
+        <option value="1440">1일 전</option>
+      </select>
+    </div>
+    <div class="field">
+      <label>설명</label>
+      <textarea id="taskDesc" placeholder="세부 내용 (선택)"></textarea>
     </div>
     <div class="modal-actions">
       <button class="btn btn-danger" id="deleteTaskBtn" style="display:none;">전체 삭제</button>
@@ -569,6 +605,7 @@
     <p class="login-tag">나에게 딱 맞는 스케줄러</p>
     <p class="login-sub">Google 계정으로 로그인하면<br>모든 기기에서 일정이 함께 보여요.</p>
     <button class="login-btn" id="googleSignInBtn"><span class="g">G</span> Google로 로그인</button>
+    <label class="keep-login"><input type="checkbox" id="keepLogin" checked> 로그인 상태 유지</label>
   </div>
 </div>
 
@@ -615,18 +652,27 @@
     return { type, days, until: safeDate(r.until) };
   }
 
+  const REMIND_VALUES = ["none","0","10","30","60","1440"];
+  function safeTime(v){ return (typeof v==="string" && TIME_RE.test(v)) ? v : ""; }
+  function safeRemind(v){ return REMIND_VALUES.includes(String(v)) ? String(v) : "none"; }
+
   function normalizeTask(t){
     t = (t && typeof t==="object") ? t : {};
     const date = safeDate(t.date);
     return {
       id: safeId(t.id),
       title: safeStr(t.title, 200),
+      location: safeStr(t.location, 200),
+      important: !!t.important,
       date: date,
       endDate: safeDate(t.endDate),
-      time: (typeof t.time==="string" && TIME_RE.test(t.time)) ? t.time : "",
+      time: safeTime(t.time),
+      endTime: safeTime(t.endTime),
+      allDay: !!t.allDay,
       desc: safeStr(t.desc, 2000),
       category: safeId(t.category),
       repeat: safeRepeat(t.repeat),
+      remind: safeRemind(t.remind),
       doneDates: t.doneDates ? safeDateArr(t.doneDates) : (t.done && date ? [date] : []),
       skipDates: safeDateArr(t.skipDates),
     };
@@ -733,9 +779,28 @@
         showLoginGate();
       }
     });
-    document.getElementById("googleSignInBtn").addEventListener("click", ()=>{
+    let authInProgress = false;
+    const signInBtn = document.getElementById("googleSignInBtn");
+    signInBtn.addEventListener("click", ()=>{
+      if(authInProgress) return;              // 중복 클릭 방지 (팝업 2개 방지)
+      if(firebase.auth().currentUser) return; // 이미 로그인돼 있으면 무시
+      authInProgress = true;
+      signInBtn.disabled = true;
       const provider = new firebase.auth.GoogleAuthProvider();
-      firebase.auth().signInWithPopup(provider).catch(err=>alert("로그인 실패: "+err.message));
+      provider.setCustomParameters({ prompt: "select_account" });
+      // 체크 시: 브라우저 껐다 켜도 유지(LOCAL). 해제 시: 탭/창 닫으면 로그아웃(SESSION)
+      const keep = document.getElementById("keepLogin");
+      const persistence = (keep && !keep.checked)
+        ? firebase.auth.Auth.Persistence.SESSION
+        : firebase.auth.Auth.Persistence.LOCAL;
+      firebase.auth().setPersistence(persistence)
+        .then(()=> firebase.auth().signInWithPopup(provider))
+        .catch(err=>{
+          // 사용자가 팝업을 닫거나 취소한 경우는 무해 → 조용히 무시
+          const benign = ["auth/popup-closed-by-user","auth/cancelled-popup-request","auth/user-cancelled"];
+          if(!benign.includes(err.code)) alert("로그인 실패: "+err.message);
+        })
+        .finally(()=>{ authInProgress = false; signInBtn.disabled = false; });
     });
     if(signOutBtn) signOutBtn.addEventListener("click", ()=> firebase.auth().signOut());
   }
@@ -927,10 +992,11 @@
           <div class="top-row">
             <div class="title-wrap">
               <div class="check ${done?'checked':''}" data-id="${t.id}" style="${done?`background:${cat.color};border-color:${cat.color}`:''}">${done?'✓':''}</div>
-              <h3>${escapeHtml(t.title)}</h3>
+              <h3>${t.important ? '<span class="task-imp" title="중요">★</span>' : ''}${escapeHtml(t.title)}</h3>
             </div>
-            <div class="time-badge">${t.time || ''}</div>
+            <div class="time-badge">${t.allDay ? '종일' : (t.time ? t.time + (t.endTime ? '~'+t.endTime : '') : '')}</div>
           </div>
+          ${t.location ? `<div class="task-desc">📍 ${escapeHtml(t.location)}</div>` : ''}
           ${t.desc ? `<div class="task-desc">${escapeHtml(t.desc)}</div>` : ''}
           ${isRepeating ? `<div class="repeat-tag">${repeatLabel(t.repeat)}</div>` : ''}
           ${isMulti ? `<div class="repeat-tag" style="color:#2fa36f">${multiDayLabel(t, dateStr)}</div>` : ''}
@@ -1010,27 +1076,33 @@
     const type = repeatTypeSel.value;
     repeatDaysField.style.display = type==="weekly" ? "block" : "none";
     repeatUntilField.style.display = type==="none" ? "none" : "block";
-    document.getElementById("taskDateLabel").textContent = type==="none" ? "날짜" : "시작일";
   }
   repeatTypeSel.addEventListener("change", updateRepeatFieldsVisibility);
 
-  const multiDayCheck = document.getElementById("taskMultiDay");
-  const endDateField = document.getElementById("endDateField");
-  const repeatFieldEl = document.getElementById("repeatField");
-  function updateMultiDay(){
-    const on = multiDayCheck.checked;
-    endDateField.style.display = on ? "block" : "none";
-    repeatFieldEl.style.display = on ? "none" : "block";   // 여러 날 + 반복은 같이 안 씀
-    if(on){
-      repeatTypeSel.value = "none";
-      updateRepeatFieldsVisibility();
-      const sd = document.getElementById("taskDate").value;
-      const ed = document.getElementById("taskEndDate");
-      if(!ed.value && sd) ed.value = sd;   // 종료일 기본값 = 시작일
-      document.getElementById("taskDateLabel").textContent = "시작일";
-    }
+  // 종일 체크 → 시간 입력 숨김
+  const allDayCheck = document.getElementById("taskAllDay");
+  function updateAllDay(){
+    const on = allDayCheck.checked;
+    document.querySelectorAll(".timeInput").forEach(el=>{ el.style.display = on ? "none" : ""; });
   }
-  multiDayCheck.addEventListener("change", updateMultiDay);
+  allDayCheck.addEventListener("change", updateAllDay);
+
+  // 종료일 > 시작일(여러 날 일정)이면 반복 비활성화 (둘은 같이 못 씀)
+  const repeatFieldEl = document.getElementById("repeatField");
+  const startDateEl = document.getElementById("taskDate");
+  const endDateEl = document.getElementById("taskEndDate");
+  function updateRepeatAvailability(){
+    const multi = startDateEl.value && endDateEl.value && endDateEl.value > startDateEl.value;
+    if(multi){ repeatTypeSel.value = "none"; updateRepeatFieldsVisibility(); }
+    repeatTypeSel.disabled = multi;
+    repeatFieldEl.style.opacity = multi ? ".45" : "1";
+  }
+  startDateEl.addEventListener("change", ()=>{
+    // 시작일이 종료일보다 늦어지면 종료일도 맞춰줌
+    if(endDateEl.value && endDateEl.value < startDateEl.value) endDateEl.value = startDateEl.value;
+    updateRepeatAvailability();
+  });
+  endDateEl.addEventListener("change", updateRepeatAvailability);
 
   function openTaskModal(id){
     fillCategorySelect();
@@ -1040,32 +1112,41 @@
       const t = tasks.find(x=>x.id===id);
       document.getElementById("taskId").value = t.id;
       document.getElementById("taskTitle").value = t.title;
+      document.getElementById("taskImportant").checked = !!t.important;
+      document.getElementById("taskLocation").value = t.location || "";
       document.getElementById("taskDate").value = t.date;
       document.getElementById("taskTime").value = t.time || "";
+      document.getElementById("taskEndDate").value = t.endDate || t.date;
+      document.getElementById("taskEndTime").value = t.endTime || "";
+      document.getElementById("taskAllDay").checked = !!t.allDay;
       document.getElementById("taskDesc").value = t.desc || "";
+      document.getElementById("taskRemind").value = t.remind || "none";
       taskCategorySel.value = t.category;
       const rep = t.repeat || {type:"none",days:[],until:""};
       repeatTypeSel.value = rep.type;
       editingRepeatDays = (rep.days||[]).slice();
       document.getElementById("taskRepeatUntil").value = rep.until || "";
-      multiDayCheck.checked = !!(t.endDate && t.endDate > t.date);
-      document.getElementById("taskEndDate").value = t.endDate || "";
     } else {
       document.getElementById("taskId").value = "";
       document.getElementById("taskTitle").value = "";
+      document.getElementById("taskImportant").checked = false;
+      document.getElementById("taskLocation").value = "";
       document.getElementById("taskDate").value = fmt(selectedDate);
       document.getElementById("taskTime").value = "";
+      document.getElementById("taskEndDate").value = fmt(selectedDate);
+      document.getElementById("taskEndTime").value = "";
+      document.getElementById("taskAllDay").checked = false;
       document.getElementById("taskDesc").value = "";
+      document.getElementById("taskRemind").value = "none";
       taskCategorySel.value = categories[0].id;
       repeatTypeSel.value = "none";
       editingRepeatDays = [selectedDate.getDay()];
       document.getElementById("taskRepeatUntil").value = "";
-      multiDayCheck.checked = false;
-      document.getElementById("taskEndDate").value = "";
     }
     renderWeekdayPicker();
     updateRepeatFieldsVisibility();
-    updateMultiDay();
+    updateAllDay();
+    updateRepeatAvailability();
     taskOverlay.classList.add("show");
     document.getElementById("taskTitle").focus();
   }
@@ -1080,24 +1161,36 @@
     if(!title){ alert("제목을 입력해주세요."); return; }
     const id = document.getElementById("taskId").value;
     const date = document.getElementById("taskDate").value || fmt(selectedDate);
-    const multiDay = multiDayCheck.checked;
-    let endDate = "";
-    if(multiDay){
-      endDate = document.getElementById("taskEndDate").value || date;
-      if(endDate < date){ alert("종료일이 시작일보다 빠를 수 없어요."); return; }
-    }
+    let endDate = document.getElementById("taskEndDate").value || date;
+    if(endDate < date){ alert("종료일이 시작일보다 빠를 수 없어요."); return; }
+    const multiDay = endDate > date;               // 여러 날 일정
+    if(!multiDay) endDate = "";                     // 하루짜리는 endDate 비움(기존 로직 호환)
+
+    const allDay = document.getElementById("taskAllDay").checked;
+    const time = allDay ? "" : document.getElementById("taskTime").value;
+    let endTime = allDay ? "" : document.getElementById("taskEndTime").value;
+    if(time && endTime && !multiDay && endTime < time){ alert("종료 시간이 시작 시간보다 빠를 수 없어요."); return; }
+
     const repType = multiDay ? "none" : repeatTypeSel.value;   // 여러 날 일정이면 반복 안 함
     let repDays = editingRepeatDays.slice();
     if(repType==="weekly" && repDays.length===0){
       repDays = [new Date(date+"T00:00:00").getDay()];
     }
+    const remind = document.getElementById("taskRemind").value;
+    if(remind !== "none") ensureNotifyPermission();
+
     const data = {
       title,
+      location: document.getElementById("taskLocation").value.trim(),
+      important: document.getElementById("taskImportant").checked,
       date,
       endDate,
-      time: document.getElementById("taskTime").value,
+      time,
+      endTime,
+      allDay,
       desc: document.getElementById("taskDesc").value.trim(),
       category: taskCategorySel.value,
+      remind,
       repeat: {
         type: repType,
         days: repType==="weekly" ? repDays : [],
@@ -1408,9 +1501,48 @@
     if(currentView==="month") renderMonth();
   }
 
+  // ---------- 알림 (브라우저 팝업) ----------
+  // 참고: 사이트가 탭에 열려 있을 때만 울립니다. (메일/앱 종료 후 알림은 별도 서버 설정 필요)
+  function ensureNotifyPermission(){
+    if(!("Notification" in window)) return;
+    if(Notification.permission === "default"){
+      Notification.requestPermission().catch(()=>{});
+    }
+  }
+  const remindFired = new Set();  // "날짜|id|remind" — 같은 알림 중복 방지
+  function checkReminders(){
+    if(!("Notification" in window) || Notification.permission !== "granted") return;
+    const now = new Date();
+    [0,1].forEach(offset=>{                       // 오늘 + 내일(1일 전 알림 대응)
+      const d = new Date(now); d.setDate(d.getDate()+offset);
+      const ds = fmt(d);
+      tasksForDate(ds).forEach(t=>{
+        if(!t.remind || t.remind==="none" || t.allDay || !t.time) return;
+        const [hh,mm] = t.time.split(":").map(Number);
+        const trigger = new Date(ds+"T00:00:00");
+        trigger.setHours(hh, mm - Number(t.remind), 0, 0);
+        const key = ds+"|"+t.id+"|"+t.remind;
+        const diff = now - trigger;
+        if(diff>=0 && diff<60000 && !remindFired.has(key)){   // 예정 시각 지난 직후 1분 내
+          remindFired.add(key);
+          try{ new Notification("DDAKCAL 일정 알림", { body:`${t.time}  ${t.title}`, icon:"logo.png" }); }catch(e){}
+        }
+      });
+    });
+  }
+  if("Notification" in window) setInterval(checkReminders, 30000);
+
   renderAll();
   if(CLOUD_ENABLED){ showLoginGate(); initCloud(); }
 })();
+</script>
+<script>
+  // 서비스워커 등록 (오프라인 구동 + 설치 가능)
+  if("serviceWorker" in navigator){
+    window.addEventListener("load", ()=>{
+      navigator.serviceWorker.register("sw.js").catch(err=>console.warn("SW 등록 실패:", err));
+    });
+  }
 </script>
 </body>
 </html>
