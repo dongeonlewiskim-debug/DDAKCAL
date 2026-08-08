@@ -759,6 +759,11 @@
     db = firebase.firestore();
     try{ db.enablePersistence({synchronizeTabs:true}); }catch(e){}
     cloudReady = true;
+    // 리다이렉트 로그인으로 돌아왔을 때 오류가 있으면 표시 (성공은 onAuthStateChanged가 처리)
+    firebase.auth().getRedirectResult().catch(err=>{
+      const benign = ["auth/popup-closed-by-user","auth/cancelled-popup-request","auth/user-cancelled"];
+      if(err && err.code && !benign.includes(err.code)) alert("로그인 실패: "+err.message);
+    });
     const signOutBtn = document.getElementById("signOutBtn");
     const greetEl = document.getElementById("userGreeting");
     firebase.auth().onAuthStateChanged(user=>{
@@ -781,8 +786,12 @@
     });
     let authInProgress = false;
     const signInBtn = document.getElementById("googleSignInBtn");
+    // 모바일/설치앱은 팝업이 막히므로 리다이렉트 방식으로 로그인
+    const isMobileLike = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
+      || window.matchMedia("(display-mode: standalone)").matches
+      || navigator.standalone === true;
     signInBtn.addEventListener("click", ()=>{
-      if(authInProgress) return;              // 중복 클릭 방지 (팝업 2개 방지)
+      if(authInProgress) return;              // 중복 클릭 방지
       if(firebase.auth().currentUser) return; // 이미 로그인돼 있으면 무시
       authInProgress = true;
       signInBtn.disabled = true;
@@ -794,7 +803,15 @@
         ? firebase.auth.Auth.Persistence.SESSION
         : firebase.auth.Auth.Persistence.LOCAL;
       firebase.auth().setPersistence(persistence)
-        .then(()=> firebase.auth().signInWithPopup(provider))
+        .then(()=>{
+          if(isMobileLike) return firebase.auth().signInWithRedirect(provider);  // 페이지 이동 방식
+          // 데스크탑: 팝업 시도, 막히면 리다이렉트로 자동 전환
+          return firebase.auth().signInWithPopup(provider).catch(err=>{
+            const popupFail = ["auth/popup-blocked","auth/cancelled-popup-request","auth/operation-not-supported-in-this-environment"];
+            if(popupFail.includes(err.code)) return firebase.auth().signInWithRedirect(provider);
+            throw err;
+          });
+        })
         .catch(err=>{
           // 사용자가 팝업을 닫거나 취소한 경우는 무해 → 조용히 무시
           const benign = ["auth/popup-closed-by-user","auth/cancelled-popup-request","auth/user-cancelled"];
