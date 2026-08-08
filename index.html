@@ -419,6 +419,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"></script>
+<script src="https://accounts.google.com/gsi/client" async></script>
 </head>
 <body>
 <div class="app">
@@ -604,7 +605,7 @@
     <div class="login-logo"><span class="dot"></span> DDAKCAL</div>
     <p class="login-tag">나에게 딱 맞는 스케줄러</p>
     <p class="login-sub">Google 계정으로 로그인하면<br>모든 기기에서 일정이 함께 보여요.</p>
-    <button class="login-btn" id="googleSignInBtn"><span class="g">G</span> Google로 로그인</button>
+    <div id="gisBtn" style="display:flex;justify-content:center;min-height:44px;"></div>
     <label class="keep-login"><input type="checkbox" id="keepLogin" checked> 로그인 상태 유지</label>
   </div>
 </div>
@@ -726,6 +727,8 @@
     measurementId: "G-HBJ2P7WT7Z"
   };
   const CLOUD_ENABLED = !!firebaseConfig.apiKey && firebaseConfig.apiKey.indexOf("여기에") === -1;
+  // Google 로그인(Identity Services) 웹 클라이언트 ID
+  const GIS_CLIENT_ID = "65116543157-csqh2fdma659o1dn6f2ppi2ojo4ji2td.apps.googleusercontent.com";
 
   let db = null, currentUser = null, cloudReady = false, cloudUnsub = null, cloudWriteTimer = null;
 
@@ -759,11 +762,6 @@
     db = firebase.firestore();
     try{ db.enablePersistence({synchronizeTabs:true}); }catch(e){}
     cloudReady = true;
-    // 리다이렉트 로그인으로 돌아왔을 때 오류가 있으면 표시 (성공은 onAuthStateChanged가 처리)
-    firebase.auth().getRedirectResult().catch(err=>{
-      const benign = ["auth/popup-closed-by-user","auth/cancelled-popup-request","auth/user-cancelled"];
-      if(err && err.code && !benign.includes(err.code)) alert("로그인 실패: "+err.message);
-    });
     const signOutBtn = document.getElementById("signOutBtn");
     const greetEl = document.getElementById("userGreeting");
     firebase.auth().onAuthStateChanged(user=>{
@@ -784,42 +782,44 @@
         showLoginGate();
       }
     });
-    let authInProgress = false;
-    const signInBtn = document.getElementById("googleSignInBtn");
-    // 모바일/설치앱은 팝업이 막히므로 리다이렉트 방식으로 로그인
-    const isMobileLike = /Android|iPhone|iPad|iPod/i.test(navigator.userAgent)
-      || window.matchMedia("(display-mode: standalone)").matches
-      || navigator.standalone === true;
-    signInBtn.addEventListener("click", ()=>{
-      if(authInProgress) return;              // 중복 클릭 방지
-      if(firebase.auth().currentUser) return; // 이미 로그인돼 있으면 무시
-      authInProgress = true;
-      signInBtn.disabled = true;
-      const provider = new firebase.auth.GoogleAuthProvider();
-      provider.setCustomParameters({ prompt: "select_account" });
-      // 체크 시: 브라우저 껐다 켜도 유지(LOCAL). 해제 시: 탭/창 닫으면 로그아웃(SESSION)
+    // ---- Google Identity Services 로그인 ----
+    // 팝업/리다이렉트 없이 페이지 안에서 ID 토큰을 받아 Firebase에 로그인 → 사파리 도메인 문제 없음
+    function onGoogleCredential(resp){
       const keep = document.getElementById("keepLogin");
       const persistence = (keep && !keep.checked)
         ? firebase.auth.Auth.Persistence.SESSION
         : firebase.auth.Auth.Persistence.LOCAL;
+      const cred = firebase.auth.GoogleAuthProvider.credential(resp.credential);
       firebase.auth().setPersistence(persistence)
-        .then(()=>{
-          if(isMobileLike) return firebase.auth().signInWithRedirect(provider);  // 페이지 이동 방식
-          // 데스크탑: 팝업 시도, 막히면 리다이렉트로 자동 전환
-          return firebase.auth().signInWithPopup(provider).catch(err=>{
-            const popupFail = ["auth/popup-blocked","auth/cancelled-popup-request","auth/operation-not-supported-in-this-environment"];
-            if(popupFail.includes(err.code)) return firebase.auth().signInWithRedirect(provider);
-            throw err;
-          });
-        })
-        .catch(err=>{
-          // 사용자가 팝업을 닫거나 취소한 경우는 무해 → 조용히 무시
-          const benign = ["auth/popup-closed-by-user","auth/cancelled-popup-request","auth/user-cancelled"];
-          if(!benign.includes(err.code)) alert("로그인 실패: "+err.message);
-        })
-        .finally(()=>{ authInProgress = false; signInBtn.disabled = false; });
+        .then(()=> firebase.auth().signInWithCredential(cred))
+        .catch(err=> alert("로그인 실패: "+err.message));
+    }
+    let gisTries = 0;
+    function initGoogleSignIn(){
+      if(!(window.google && google.accounts && google.accounts.id)){
+        if(gisTries++ < 40) return setTimeout(initGoogleSignIn, 250); // 스크립트 로딩 대기
+        return;
+      }
+      google.accounts.id.initialize({
+        client_id: GIS_CLIENT_ID,
+        callback: onGoogleCredential,
+        auto_select: false,
+        cancel_on_tap_outside: true,
+      });
+      const wrap = document.getElementById("gisBtn");
+      if(wrap){
+        wrap.innerHTML = "";
+        google.accounts.id.renderButton(wrap, {
+          type:"standard", theme:"filled_blue", size:"large",
+          shape:"pill", text:"signin_with", locale:"ko", width:280,
+        });
+      }
+    }
+    initGoogleSignIn();
+    if(signOutBtn) signOutBtn.addEventListener("click", ()=>{
+      try{ google.accounts.id.disableAutoSelect(); }catch(e){}
+      firebase.auth().signOut();
     });
-    if(signOutBtn) signOutBtn.addEventListener("click", ()=> firebase.auth().signOut());
   }
 
   // ---------- Recurrence logic ----------
