@@ -1210,12 +1210,14 @@
     document.querySelectorAll(".tt-btn").forEach(b=>b.classList.toggle("active", b.dataset.type===editingType));
     const dsp = todo ? "none" : "";
     document.getElementById("locationField").style.display = dsp;
-    document.getElementById("dtTilde").style.display = dsp;
-    document.getElementById("endLine").style.display = dsp;
     document.getElementById("allDayField").style.display = dsp;
     document.getElementById("remindField").style.display = dsp;
+    // 날짜 범위(시작~종료)는 할일/일정 둘 다 표시 → 할일도 여러 날 가능. 할일은 '시간' 입력만 숨김
+    document.getElementById("dtTilde").style.display = "";
+    document.getElementById("endLine").style.display = "";
     document.getElementById("taskTime").style.display = todo ? "none" : "";
-    document.getElementById("taskDateLabel").textContent = todo ? "날짜" : "일시";
+    document.getElementById("taskEndTime").style.display = todo ? "none" : "";
+    document.getElementById("taskDateLabel").textContent = todo ? "기간" : "일시";
     if(todo){
       repeatFieldEl.style.display = "none";
       repeatDaysField.style.display = "none";
@@ -1316,7 +1318,7 @@
       location: isTodo ? "" : document.getElementById("taskLocation").value.trim(),
       important: document.getElementById("taskImportant").checked,
       date,
-      endDate: isTodo ? "" : endDate,
+      endDate,
       time: isTodo ? "" : time,
       endTime: isTodo ? "" : endTime,
       allDay: isTodo ? true : allDay,     // 할일은 시간 없음(종일 취급)
