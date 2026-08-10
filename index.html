@@ -2,7 +2,7 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>DDAKCAL</title>
 <!-- 크롬 탭 아이콘 (파비콘) -->
 <link rel="icon" type="image/png" href="logo.png">
@@ -87,6 +87,7 @@
   :root[data-theme="dark"] .login-gate{background:var(--bg);}
   :root[data-theme="dark"] ::-webkit-scrollbar-thumb{background:#3a3e4a;}
   *{box-sizing:border-box;}
+  html,body{max-width:100%;overflow-x:hidden;touch-action:manipulation;}   /* 가로 넘침 방지 + 더블탭 확대 차단 */
   body{
     margin:0;
     font-family:'Freesentation',-apple-system,BlinkMacSystemFont,"Segoe UI","Malgun Gothic","Apple SD Gothic Neo",sans-serif;
@@ -1657,6 +1658,12 @@
       navigator.serviceWorker.register("sw.js").catch(err=>console.warn("SW 등록 실패:", err));
     });
   }
+
+  // 앱처럼 — 핀치(두 손가락) 확대 차단. 더블탭 확대는 위 CSS touch-action:manipulation이 처리.
+  // viewport 잠금(user-scalable=no)을 안 써서 iOS 화면이 확대된 채 굳는 버그가 없음.
+  ["gesturestart","gesturechange","gestureend"].forEach(t=>{
+    document.addEventListener(t, e=>e.preventDefault(), {passive:false});
+  });
 </script>
 </body>
 </html>

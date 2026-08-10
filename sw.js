@@ -1,5 +1,5 @@
 // DDAKCAL 서비스워커 — 오프라인 구동 + 앱 설치
-const CACHE = "ddakcal-v1";
+const CACHE = "ddakcal-v2";
 const ASSETS = [
   "./",
   "./index.html",
