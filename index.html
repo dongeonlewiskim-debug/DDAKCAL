@@ -210,14 +210,18 @@
   .add-task-btn:hover{background:var(--blue-deep);}
 
   .view-toggle{
-    display:inline-flex;background:var(--card-soft);border-radius:14px;
+    display:flex;background:var(--card-soft);border-radius:14px;
     padding:4px;gap:2px;margin-bottom:24px;
   }
   .vt-btn{
-    border:none;background:none;color:var(--muted);padding:9px 18px;border-radius:10px;
-    font-size:13px;font-weight:700;cursor:pointer;
+    flex:1;border:none;background:none;color:var(--muted);padding:9px 8px;border-radius:10px;
+    font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;
   }
   .vt-btn.active{background:#fff;color:var(--blue);box-shadow:0 3px 10px rgba(27,30,40,.08);}
+  /* 할일/일정 리스트: 날짜 구분 헤더 + 연결선 없음 */
+  .list-date-head{font-size:13px;font-weight:800;color:var(--muted);margin:20px 0 10px 2px;letter-spacing:.01em;}
+  .list-date-head:first-child{margin-top:2px;}
+  .timeline.flat .line{display:none;}
 
   /* week strip — clean text columns (no boxes), reference style */
   .week-strip{
@@ -545,8 +549,10 @@
     </div>
 
     <div class="view-toggle">
-      <button class="vt-btn" data-view="timeline">타임라인</button>
       <button class="vt-btn active" data-view="month">월간</button>
+      <button class="vt-btn" data-view="timeline">하루</button>
+      <button class="vt-btn" data-view="todo">할일</button>
+      <button class="vt-btn" data-view="event">일정</button>
     </div>
 
     <div id="timelineView" style="display:none;">
@@ -566,6 +572,13 @@
       <div class="month-grid" id="monthGrid"></div>
       <div class="month-daylist-head" id="monthDayHead"></div>
       <div class="timeline" id="monthDayList"></div>
+    </div>
+
+    <div id="todoView" style="display:none;">
+      <div class="timeline flat" id="todoList"></div>
+    </div>
+    <div id="eventView" style="display:none;">
+      <div class="timeline flat" id="eventList"></div>
     </div>
 
   </div>
@@ -1044,69 +1057,47 @@
 
   // ---------- Timeline ----------
   const timeline = document.getElementById("timeline");
-  function renderTimeline(cont){
-    cont = cont || timeline;   // 어느 영역에 그릴지 (기본: 타임라인 뷰)
-    cont.innerHTML = "";
-    const dateStr = fmt(selectedDate);
-    const dayTasks = tasksForDate(dateStr)
-      .filter(t=>activeCatFilter.has(t.category))
-      .sort((a,b)=> (a.time||"99:99").localeCompare(b.time||"99:99"));
+  const todoListEl = document.getElementById("todoList");
+  const eventListEl = document.getElementById("eventList");
 
-    if(dayTasks.length===0){
-      cont.innerHTML = `<div class="empty-state"><div class="big">🗓️</div>이 날짜에 등록된 일정이 없어요.</div>`;
-      return;
-    }
-
-    // "current" = on today, the most recently started timed task not yet done → blue hero card
-    let currentId = null;
-    if(sameDay(selectedDate, new Date())){
-      const nowT = new Date().toTimeString().slice(0,5); // "HH:MM"
-      const started = dayTasks.filter(t=>t.time && t.time<=nowT && !isDone(t,dateStr));
-      if(started.length) currentId = started[started.length-1].id;
-    }
-
-    dayTasks.forEach(t=>{
-      const cat = catById(t.category);
-      const done = isDone(t, dateStr);
-      const current = t.id===currentId;
-      const isRepeating = t.repeat && t.repeat.type !== "none";
-      const isMulti = !!(t.endDate && t.endDate > t.date);
-      const row = document.createElement("div");
-      row.className = "task-row";
-      row.innerHTML = `
-        <div class="track">
-          <div class="node ${done?'done':''} ${current?'current':''}" style="border-color:${current?'#fff':cat.color};${done?`background:${cat.color}`:''}"></div>
-          <div class="line"></div>
-        </div>
-        <div class="task-card ${done?'done':''} ${current?'current':''}">
-          <div class="top-row">
-            <div class="title-wrap">
-              <div class="check ${done?'checked':''}" data-id="${t.id}" style="${done?`background:${cat.color};border-color:${cat.color}`:''}">${done?'✓':''}</div>
-              <h3>${t.important ? '<span class="task-imp" title="중요">★</span>' : ''}${escapeHtml(t.title)}</h3>
-            </div>
-            <div class="time-badge">${t.type==='todo' ? '☑ 할일' : (t.allDay ? '종일' : (t.time ? t.time + (t.endTime ? '~'+t.endTime : '') : ''))}</div>
+  // 한 개 일정 카드 HTML (타임라인·리스트 공용). dateStr = 이 카드가 대표하는 날짜
+  function taskRowHTML(t, dateStr, current){
+    const cat = catById(t.category);
+    const done = isDone(t, dateStr);
+    const isRepeating = t.repeat && t.repeat.type !== "none";
+    const isMulti = !!(t.endDate && t.endDate > t.date);
+    return `
+      <div class="track">
+        <div class="node ${done?'done':''} ${current?'current':''}" style="border-color:${current?'#fff':cat.color};${done?`background:${cat.color}`:''}"></div>
+        <div class="line"></div>
+      </div>
+      <div class="task-card ${done?'done':''} ${current?'current':''}">
+        <div class="top-row">
+          <div class="title-wrap">
+            <div class="check ${done?'checked':''}" data-id="${t.id}" data-date="${dateStr}" style="${done?`background:${cat.color};border-color:${cat.color}`:''}">${done?'✓':''}</div>
+            <h3>${t.important ? '<span class="task-imp" title="중요">★</span>' : ''}${escapeHtml(t.title)}</h3>
           </div>
-          ${t.location ? `<div class="task-desc">📍 ${escapeHtml(t.location)}</div>` : ''}
-          ${t.desc ? `<div class="task-desc">${escapeHtml(t.desc)}</div>` : ''}
-          ${isRepeating ? `<div class="repeat-tag">${repeatLabel(t.repeat)}</div>` : ''}
-          ${isMulti ? `<div class="repeat-tag" style="color:#2fa36f">${multiDayLabel(t, dateStr)}</div>` : ''}
-          <div class="task-meta">
-            <span class="cat-tag" style="background:${cat.color}22;color:${cat.color}">${escapeHtml(cat.name)}</span>
-            <div class="task-actions">
-              <button class="icon-btn edit" data-id="${t.id}" title="수정">✎</button>
-              ${isRepeating ? `<button class="icon-btn skip" data-id="${t.id}" title="이 날짜만 제외">⤫</button>` : ''}
-              <button class="icon-btn del" data-id="${t.id}" title="전체 삭제">🗑</button>
-            </div>
+          <div class="time-badge">${t.type==='todo' ? '☑ 할일' : (t.allDay ? '종일' : (t.time ? t.time + (t.endTime ? '~'+t.endTime : '') : ''))}</div>
+        </div>
+        ${t.location ? `<div class="task-desc">📍 ${escapeHtml(t.location)}</div>` : ''}
+        ${t.desc ? `<div class="task-desc">${escapeHtml(t.desc)}</div>` : ''}
+        ${isRepeating ? `<div class="repeat-tag">${repeatLabel(t.repeat)}</div>` : ''}
+        ${isMulti ? `<div class="repeat-tag" style="color:#2fa36f">${multiDayLabel(t, dateStr)}</div>` : ''}
+        <div class="task-meta">
+          <span class="cat-tag" style="background:${cat.color}22;color:${cat.color}">${escapeHtml(cat.name)}</span>
+          <div class="task-actions">
+            <button class="icon-btn edit" data-id="${t.id}" title="수정">✎</button>
+            ${isRepeating ? `<button class="icon-btn skip" data-id="${t.id}" data-date="${dateStr}" title="이 날짜만 제외">⤫</button>` : ''}
+            <button class="icon-btn del" data-id="${t.id}" title="전체 삭제">🗑</button>
           </div>
         </div>
-      `;
-      cont.appendChild(row);
-    });
-
+      </div>`;
+  }
+  function attachTaskListeners(cont){
     cont.querySelectorAll(".check").forEach(el=>{
       el.addEventListener("click", ()=>{
         const t = tasks.find(x=>x.id===el.dataset.id);
-        toggleDone(t, dateStr); saveTasks(); renderTimeline(cont); renderMiniCal();
+        toggleDone(t, el.dataset.date); saveTasks(); renderAll();
       });
     });
     cont.querySelectorAll(".edit").forEach(el=>{
@@ -1117,7 +1108,7 @@
         const t = tasks.find(x=>x.id===el.dataset.id);
         if(confirm("이 날짜의 일정만 제외할까요? (다른 반복 날짜는 유지돼요)")){
           if(!t.skipDates) t.skipDates=[];
-          t.skipDates.push(dateStr);
+          t.skipDates.push(el.dataset.date);
           saveTasks(); renderAll();
         }
       });
@@ -1132,6 +1123,60 @@
         }
       });
     });
+  }
+  function renderTimeline(cont){
+    cont = cont || timeline;   // 어느 영역에 그릴지 (기본: 타임라인 뷰)
+    cont.innerHTML = "";
+    const dateStr = fmt(selectedDate);
+    const dayTasks = tasksForDate(dateStr)
+      .filter(t=>activeCatFilter.has(t.category))
+      .sort((a,b)=> (a.time||"99:99").localeCompare(b.time||"99:99"));
+
+    if(dayTasks.length===0){
+      cont.innerHTML = `<div class="empty-state"><div class="big">🗓️</div>이 날짜에 등록된 일정이 없어요.</div>`;
+      return;
+    }
+    // "current" = 오늘 & 이미 시작했고 아직 안 끝낸 최근 일정 → 파란 강조 카드
+    let currentId = null;
+    if(sameDay(selectedDate, new Date())){
+      const nowT = new Date().toTimeString().slice(0,5);
+      const started = dayTasks.filter(t=>t.time && t.time<=nowT && !isDone(t,dateStr));
+      if(started.length) currentId = started[started.length-1].id;
+    }
+    dayTasks.forEach(t=>{
+      const row = document.createElement("div");
+      row.className = "task-row";
+      row.innerHTML = taskRowHTML(t, dateStr, t.id===currentId);
+      cont.appendChild(row);
+    });
+    attachTaskListeners(cont);
+  }
+  // 할일/일정 전체를 날짜별로 묶어 리스트로 (달력 아님)
+  function renderTypeList(cont, type){
+    cont.innerHTML = "";
+    const items = tasks
+      .filter(t=> (t.type||"event")===type && activeCatFilter.has(t.category))
+      .sort((a,b)=> (a.date+(a.time||"99:99")).localeCompare(b.date+(b.time||"99:99")));
+    if(items.length===0){
+      cont.innerHTML = `<div class="empty-state"><div class="big">${type==="todo"?"✅":"📅"}</div>${type==="todo"?"등록된 할일이 없어요.":"등록된 일정이 없어요."}</div>`;
+      return;
+    }
+    let lastDate = "";
+    items.forEach(t=>{
+      const dateStr = t.date;
+      if(dateStr !== lastDate){
+        lastDate = dateStr;
+        const hd = document.createElement("div");
+        hd.className = "list-date-head";
+        hd.textContent = new Date(dateStr+"T00:00:00").toLocaleDateString("ko-KR",{year:"numeric",month:"long",day:"numeric",weekday:"short"});
+        cont.appendChild(hd);
+      }
+      const row = document.createElement("div");
+      row.className = "task-row";
+      row.innerHTML = taskRowHTML(t, dateStr, false);
+      cont.appendChild(row);
+    });
+    attachTaskListeners(cont);
   }
 
   // ---------- Task Modal ----------
@@ -1392,8 +1437,12 @@
     document.querySelectorAll(".vt-btn").forEach(b=>b.classList.toggle("active", b.dataset.view===view));
     document.getElementById("timelineView").style.display = view==="timeline" ? "block" : "none";
     document.getElementById("monthView").style.display    = view==="month"    ? "block" : "none";
+    document.getElementById("todoView").style.display     = view==="todo"     ? "block" : "none";
+    document.getElementById("eventView").style.display    = view==="event"    ? "block" : "none";
     if(view==="month"){ renderMonth(); renderMonthList(); }
     if(view==="timeline") renderTimeline();
+    if(view==="todo") renderTypeList(todoListEl, "todo");
+    if(view==="event") renderTypeList(eventListEl, "event");
   }
   document.querySelectorAll(".vt-btn").forEach(btn=>{
     btn.addEventListener("click", ()=> switchView(btn.dataset.view));
@@ -1672,6 +1721,8 @@
     renderHeader();
     renderTimeline();
     if(currentView==="month"){ renderMonth(); renderMonthList(); }
+    if(currentView==="todo") renderTypeList(todoListEl, "todo");
+    if(currentView==="event") renderTypeList(eventListEl, "event");
   }
 
   // ---------- 알림 (브라우저 팝업) ----------
