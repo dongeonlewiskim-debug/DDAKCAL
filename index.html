@@ -247,7 +247,7 @@
   }
   .node{
     width:13px;height:13px;border-radius:50%;border:2.5px solid var(--blue);background:#fff;
-    margin-top:26px;flex:none;
+    margin-top:22px;flex:none;
   }
   .node.done{background:var(--blue);}
   .node.current{
@@ -274,6 +274,26 @@
   .task-card h3{margin:0;font-size:16px;font-weight:800;word-break:break-word;line-height:1.35;}
   .task-card.done h3{text-decoration:line-through;color:var(--muted);}
   .time-badge{font-size:13.5px;color:var(--muted);font-weight:600;white-space:nowrap;flex:none;}
+  /* 시간을 맨 왼쪽 거터에 (레일 왼쪽) — 타임라인 느낌, 색으로 구분 */
+  .row-when{
+    flex:none;width:50px;text-align:right;margin-top:21px;
+    font-size:13px;font-weight:700;color:var(--muted);white-space:nowrap;line-height:1.2;
+  }
+  .row-when.timed{color:var(--blue);font-weight:800;}
+  .row-when.todo{color:#2fa36f;}
+  .row-when.allday{color:#d9962f;}
+  .row-when.untimed{color:var(--muted);}
+  /* 시간 없는 항목 드래그 손잡이 */
+  .drag-handle{
+    flex:none;border:none;background:none;color:var(--muted);cursor:grab;
+    font-size:18px;line-height:1;padding:2px 4px;margin-top:-1px;opacity:.5;
+    touch-action:none;   /* 손잡이 잡고 끌 때 화면이 안 스크롤되게 */
+  }
+  .drag-handle:hover{opacity:1;}
+  .drag-handle:active{cursor:grabbing;}
+  .task-row.dragging{position:relative;z-index:50;}
+  .task-row.dragging .task-card{box-shadow:0 10px 26px rgba(0,0,0,.22);opacity:.97;}
+  body.reordering{user-select:none;-webkit-user-select:none;}
   .task-desc{color:var(--muted);font-size:13.5px;margin:8px 0 0 32px;line-height:1.55;}
   .repeat-tag{font-size:11.5px;color:var(--blue);margin:8px 0 0 32px;font-weight:700;}
   .task-meta{display:flex;align-items:center;gap:8px;margin:12px 0 0 32px;}
@@ -387,7 +407,7 @@
     .cat-item .cnt{font-size:12.5px;}
     .list-date-head{font-size:14px;}
     .task-card h3{font-size:17px;}
-    .time-badge{font-size:14.5px;}
+    .row-when{font-size:14px;width:56px;}
     .task-desc{font-size:14px;}
     .cat-tag{font-size:12px;}
   }
@@ -771,6 +791,7 @@
       time: safeTime(t.time),
       endTime: safeTime(t.endTime),
       allDay: !!t.allDay,
+      order: (typeof t.order === "number" && isFinite(t.order)) ? t.order : 0,
       desc: safeStr(t.desc, 2000),
       category: safeId(t.category),
       repeat: safeRepeat(t.repeat),
@@ -1076,13 +1097,75 @@
   const todoListEl = document.getElementById("todoList");
   const eventListEl = document.getElementById("eventList");
 
+  // 정렬: 시간 있으면 시간순(먼저), 없으면(할일·종일·미정) 사용자가 정한 order순
+  function dayTaskCompare(a,b){
+    const at=a.time||"", bt=b.time||"";
+    if(at && bt) return at.localeCompare(bt);
+    if(at && !bt) return -1;
+    if(!at && bt) return 1;
+    return (a.order||0)-(b.order||0);
+  }
+
+  // 시간 없는 항목만 드래그로 순서 조정 (터치+마우스 공용, Pointer Events)
+  function enableReorder(cont){
+    cont.querySelectorAll(".drag-handle").forEach(handle=>{
+      const row = handle.closest(".task-row");
+      if(!row) return;
+      let startY=0, moved=false;
+      const onMove=(e)=>{
+        moved=true;
+        row.style.transform = `translateY(${e.clientY-startY}px)`;
+        const sibs=[...cont.querySelectorAll(".task-row.untimed")]
+          .filter(s=> s!==row && s.dataset.date===row.dataset.date);
+        for(const sib of sibs){
+          const r=sib.getBoundingClientRect();
+          if(e.clientY>r.top && e.clientY<r.bottom){
+            cont.insertBefore(row, (e.clientY < r.top + r.height/2) ? sib : sib.nextSibling);
+            startY=e.clientY; row.style.transform="";
+            break;
+          }
+        }
+      };
+      const onUp=(e)=>{
+        try{ handle.releasePointerCapture(e.pointerId); }catch(_){}
+        handle.removeEventListener("pointermove", onMove);
+        handle.removeEventListener("pointerup", onUp);
+        row.style.transform=""; row.classList.remove("dragging");
+        document.body.classList.remove("reordering");
+        if(moved) commitOrder(cont, row.dataset.date);
+      };
+      handle.addEventListener("pointerdown",(e)=>{
+        e.preventDefault();
+        startY=e.clientY; moved=false;
+        row.classList.add("dragging");
+        document.body.classList.add("reordering");
+        try{ handle.setPointerCapture(e.pointerId); }catch(_){}
+        handle.addEventListener("pointermove", onMove);
+        handle.addEventListener("pointerup", onUp);
+      });
+    });
+  }
+  function commitOrder(cont, dateStr){
+    const ids=[...cont.querySelectorAll(".task-row.untimed")]
+      .filter(r=> r.dataset.date===dateStr).map(r=> r.dataset.id);
+    ids.forEach((id,i)=>{ const t=tasks.find(x=>x.id===id); if(t) t.order=i; });
+    saveTasks();
+    renderAll();
+  }
+
   // 한 개 일정 카드 HTML (타임라인·리스트 공용). dateStr = 이 카드가 대표하는 날짜
   function taskRowHTML(t, dateStr, current){
     const cat = catById(t.category);
     const done = isDone(t, dateStr);
     const isRepeating = t.repeat && t.repeat.type !== "none";
     const isMulti = !!(t.endDate && t.endDate > t.date);
+    let whenText, whenCls;
+    if(t.type==='todo'){ whenText='할일'; whenCls='todo'; }
+    else if(t.allDay){ whenText='종일'; whenCls='allday'; }
+    else if(t.time){ whenText = t.time; whenCls='timed'; }
+    else { whenText='미정'; whenCls='untimed'; }
     return `
+      <div class="row-when ${whenCls}">${whenText}</div>
       <div class="track">
         <div class="node ${done?'done':''} ${current?'current':''}" style="border-color:${current?'#fff':cat.color};${done?`background:${cat.color}`:''}"></div>
         <div class="line"></div>
@@ -1093,7 +1176,7 @@
             <div class="check ${done?'checked':''}" data-id="${t.id}" data-date="${dateStr}" style="${done?`background:${cat.color};border-color:${cat.color}`:''}">${done?'✓':''}</div>
             <h3>${t.important ? '<span class="task-imp" title="중요">★</span>' : ''}${escapeHtml(t.title)}</h3>
           </div>
-          <div class="time-badge">${t.type==='todo' ? '☑ 할일' : (t.allDay ? '종일' : (t.time ? t.time + (t.endTime ? '~'+t.endTime : '') : ''))}</div>
+          ${!t.time ? '<button class="drag-handle" title="드래그로 순서 이동" aria-label="순서 이동">⠿</button>' : ''}
         </div>
         ${t.location ? `<div class="task-desc">📍 ${escapeHtml(t.location)}</div>` : ''}
         ${t.desc ? `<div class="task-desc">${escapeHtml(t.desc)}</div>` : ''}
@@ -1146,7 +1229,7 @@
     const dateStr = fmt(selectedDate);
     const dayTasks = tasksForDate(dateStr)
       .filter(t=>activeCatFilter.has(t.category))
-      .sort((a,b)=> (a.time||"99:99").localeCompare(b.time||"99:99"));
+      .sort(dayTaskCompare);
 
     if(dayTasks.length===0){
       cont.innerHTML = `<div class="empty-state"><div class="big">🗓️</div>이 날짜에 등록된 일정이 없어요.</div>`;
@@ -1161,18 +1244,20 @@
     }
     dayTasks.forEach(t=>{
       const row = document.createElement("div");
-      row.className = "task-row";
+      row.className = "task-row" + (t.time ? "" : " untimed");
+      row.dataset.id = t.id; row.dataset.date = dateStr;
       row.innerHTML = taskRowHTML(t, dateStr, t.id===currentId);
       cont.appendChild(row);
     });
     attachTaskListeners(cont);
+    enableReorder(cont);
   }
   // 할일/일정 전체를 날짜별로 묶어 리스트로 (달력 아님)
   function renderTypeList(cont, type){
     cont.innerHTML = "";
     const items = tasks
       .filter(t=> (t.type||"event")===type && activeCatFilter.has(t.category))
-      .sort((a,b)=> (a.date+(a.time||"99:99")).localeCompare(b.date+(b.time||"99:99")));
+      .sort((a,b)=> a.date.localeCompare(b.date) || dayTaskCompare(a,b));
     if(items.length===0){
       cont.innerHTML = `<div class="empty-state"><div class="big">${type==="todo"?"✅":"📅"}</div>${type==="todo"?"등록된 할일이 없어요.":"등록된 일정이 없어요."}</div>`;
       return;
@@ -1188,11 +1273,13 @@
         cont.appendChild(hd);
       }
       const row = document.createElement("div");
-      row.className = "task-row";
+      row.className = "task-row" + (t.time ? "" : " untimed");
+      row.dataset.id = t.id; row.dataset.date = dateStr;
       row.innerHTML = taskRowHTML(t, dateStr, false);
       cont.appendChild(row);
     });
     attachTaskListeners(cont);
+    enableReorder(cont);
   }
 
   // ---------- Task Modal ----------
@@ -1387,7 +1474,7 @@
       const t = tasks.find(x=>x.id===id);
       Object.assign(t, data);
     } else {
-      tasks.push(Object.assign({id:uid(), doneDates:[], skipDates:[]}, data));
+      tasks.push(Object.assign({id:uid(), doneDates:[], skipDates:[], order:Date.now()}, data));
     }
     saveTasks();
     closeTaskModal();
