@@ -338,7 +338,8 @@
   .m-head.sat{color:var(--blue);}
   .m-week{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);}
   .m-cell{
-    background:#fff;min-height:92px;min-width:0;overflow:hidden;cursor:pointer;
+    background:#fff;min-height:max(84px, calc((100dvh - 225px) / 6));
+    min-width:0;overflow:hidden;cursor:pointer;
     padding:5px 4px 0;transition:background .1s ease;
   }
   .m-cell:hover{background:#fafbfe;}
@@ -355,7 +356,8 @@
   .m-bar{
     z-index:1;margin:0 2px;height:calc(var(--lane-h) - 4px);align-self:center;
     border-radius:5px;padding:0 6px;font-size:11px;font-weight:600;line-height:calc(var(--lane-h) - 4px);
-    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;cursor:pointer;min-width:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;min-width:0;
+    pointer-events:none;   /* 막대를 눌러도 밑의 날짜 칸이 클릭을 받도록 */
   }
   .m-bar.cont-left{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:0;}
   .m-bar.cont-right{border-top-right-radius:0;border-bottom-right-radius:0;margin-right:0;}
@@ -366,7 +368,7 @@
 
   @media (max-width:720px){
     .month-grid{--daynum-h:24px;--lane-h:16px;}
-    .m-cell{min-height:66px;padding:4px 2px 0;}
+    .m-cell{min-height:max(52px, calc((100dvh - 280px) / 6));padding:4px 2px 0;}
     .m-bar{font-size:9.5px;padding:0 4px;margin:0 1px;}
   }
 
@@ -447,7 +449,6 @@
     #miniCalBlock{display:none;}
     /* 모바일: 카테고리 영역 + 내보내기/가져오기 숨김 (로그아웃은 유지) */
     #catSection{display:none;}
-    #exportBtn,#importBtn{display:none;}
   }
 
   *:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
@@ -523,10 +524,7 @@
     </div>
 
     <div class="sidebar-footer">
-      <button class="ghost-btn" id="exportBtn">내보내기</button>
-      <button class="ghost-btn" id="importBtn">가져오기</button>
       <button class="ghost-btn" id="signOutBtn" style="display:none;">로그아웃</button>
-      <input type="file" id="importFile" accept="application/json" style="display:none">
     </div>
   </div>
 
@@ -547,7 +545,6 @@
     </div>
 
     <div class="view-toggle">
-      <button class="vt-btn" data-view="chart">일과표</button>
       <button class="vt-btn" data-view="timeline">타임라인</button>
       <button class="vt-btn active" data-view="month">월간</button>
     </div>
@@ -571,12 +568,6 @@
       <div class="timeline" id="monthDayList"></div>
     </div>
 
-    <div id="chartView" style="display:none;">
-      <div class="chart-section">
-        <div class="chart-wrap" id="chartWrap"></div>
-        <div class="chart-legend" id="chartLegend"></div>
-      </div>
-    </div>
   </div>
 </div>
 
@@ -1387,39 +1378,6 @@
     renderAll();
   });
 
-  // ---------- Export / Import ----------
-  document.getElementById("exportBtn").addEventListener("click", ()=>{
-    const blob = new Blob([JSON.stringify({tasks,categories}, null, 2)], {type:"application/json"});
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url; a.download = `schedule-backup-${fmt(new Date())}.json`;
-    a.click();
-    URL.revokeObjectURL(url);
-  });
-  document.getElementById("importBtn").addEventListener("click", ()=> document.getElementById("importFile").click());
-  document.getElementById("importFile").addEventListener("change", (e)=>{
-    const file = e.target.files[0];
-    if(!file) return;
-    if(file.size > 5 * 1024 * 1024){ alert("파일이 너무 커요. (최대 5MB)"); e.target.value=""; return; }
-    const reader = new FileReader();
-    reader.onload = ()=>{
-      try{
-        const data = JSON.parse(reader.result);
-        if(!data || typeof data!=="object" || (!Array.isArray(data.tasks) && !Array.isArray(data.categories))){
-          alert("올바른 백업 파일이 아니에요."); return;
-        }
-        const clean = sanitizeData(data);
-        if(clean.tasks) tasks = clean.tasks;
-        if(clean.categories) categories = clean.categories;
-        activeCatFilter = new Set(categories.map(c=>c.id));
-        saveTasks(); saveCats(); renderAll();
-        alert("가져오기 완료!");
-      }catch(err){ alert("파일을 읽는 중 오류가 발생했어요."); }
-    };
-    reader.readAsText(file);
-    e.target.value = "";
-  });
-
   // ---------- Day navigation ----------
   document.getElementById("dayPrev").addEventListener("click", ()=>{
     selectedDate.setDate(selectedDate.getDate()-1); calViewDate=new Date(selectedDate); renderAll();
@@ -1434,8 +1392,6 @@
     document.querySelectorAll(".vt-btn").forEach(b=>b.classList.toggle("active", b.dataset.view===view));
     document.getElementById("timelineView").style.display = view==="timeline" ? "block" : "none";
     document.getElementById("monthView").style.display    = view==="month"    ? "block" : "none";
-    document.getElementById("chartView").style.display    = view==="chart"    ? "block" : "none";
-    if(view==="chart") renderChart();
     if(view==="month"){ renderMonth(); renderMonthList(); }
     if(view==="timeline") renderTimeline();
   }
@@ -1469,6 +1425,9 @@
     const selectDay = (d)=>{
       selectedDate = new Date(d); calViewDate = new Date(d);
       renderMonth(); renderMonthList(); renderMiniCal(); renderHeader();
+      // 달력이 화면을 꽉 채우므로, 그 날 타임라인이 보이도록 아래로 스크롤
+      const head = document.getElementById("monthDayHead");
+      if(head) head.scrollIntoView({behavior:"smooth", block:"start"});
     };
 
     for(let w=0; w<6; w++){
@@ -1553,7 +1512,6 @@
         const prefix = t.type==='todo' ? '☑ ' : (!seg.multi && t.time ? t.time+' ' : '');
         bar.textContent = prefix + t.title;
         bar.title = t.title;
-        bar.addEventListener("click",(e)=>{ e.stopPropagation(); openTaskModal(t.id); });
         week.appendChild(bar);
       });
 
@@ -1713,7 +1671,6 @@
     renderWeekStrip();
     renderHeader();
     renderTimeline();
-    if(currentView==="chart") renderChart();
     if(currentView==="month"){ renderMonth(); renderMonthList(); }
   }
 
@@ -1754,7 +1711,6 @@
     document.documentElement.setAttribute("data-theme", t);
     const btn = document.getElementById("themeToggle");
     if(btn) btn.textContent = (t==="dark") ? "☀️" : "🌙";
-    if(currentView==="chart") renderChart();   // 차트 색 갱신
   }
   (function initTheme(){
     applyTheme(localStorage.getItem(THEME_KEY) || "light");
