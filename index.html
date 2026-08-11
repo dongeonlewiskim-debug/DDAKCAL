@@ -375,6 +375,23 @@
     .m-bar{font-size:9.5px;padding:0 4px;margin:0 1px;}
   }
 
+  /* 데스크톱(넓은 화면): 화면이 넓어진 만큼 글자·막대를 보기 좋게 키움 */
+  @media (min-width:721px){
+    .month-grid{--daynum-h:36px;--lane-h:26px;}
+    .m-head{font-size:14px;padding:13px 0;}
+    .m-daynum{font-size:16px;width:30px;height:30px;}
+    .m-bar{font-size:13px;padding:0 9px;border-radius:6px;}
+    .m-more2{font-size:12px;padding:0 9px;}
+    .vt-btn{font-size:15px;padding:12px 8px;}
+    .cat-item{font-size:14.5px;}
+    .cat-item .cnt{font-size:12.5px;}
+    .list-date-head{font-size:14px;}
+    .task-card h3{font-size:17px;}
+    .time-badge{font-size:14.5px;}
+    .task-desc{font-size:14px;}
+    .cat-tag{font-size:12px;}
+  }
+
   /* ---------- Modal ---------- */
   .overlay{
     position:fixed;inset:0;background:rgba(27,30,40,.42);display:none;
