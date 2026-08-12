@@ -296,12 +296,21 @@
   body.reordering{user-select:none;-webkit-user-select:none;}
   .task-desc{color:var(--muted);font-size:13.5px;margin:8px 0 0 32px;line-height:1.55;}
   .repeat-tag{font-size:11.5px;color:var(--blue);margin:8px 0 0 32px;font-weight:700;}
+  /* D-day 배지 (카드 우측 상단) */
+  .dday{
+    flex:none;align-self:flex-start;margin-top:1px;
+    font-size:11.5px;font-weight:800;padding:2px 8px;border-radius:7px;
+    background:var(--card-soft);color:var(--muted);white-space:nowrap;letter-spacing:.02em;
+  }
+  .dday.today{background:rgba(240,114,143,.16);color:var(--blue);}
+  .task-card.current .dday{background:rgba(255,255,255,.22);color:#fff;}
+  :root[data-theme="dark"] .dday{background:var(--surface-hover);}
   .task-meta{display:flex;align-items:center;gap:8px;margin:12px 0 0 32px;}
   .cat-tag{font-size:11.5px;padding:4px 11px;border-radius:20px;font-weight:700;}
-  .task-actions{display:flex;gap:4px;margin-left:auto;}
+  .task-actions{display:flex;gap:6px;margin-left:auto;}
   .icon-btn{
-    border:none;background:none;color:var(--muted);cursor:pointer;font-size:13px;
-    width:27px;height:27px;border-radius:8px;
+    border:none;background:none;color:var(--muted);cursor:pointer;font-size:16px;
+    width:36px;height:36px;border-radius:9px;
   }
   .icon-btn:hover{background:#e7eaf0;color:var(--blue);}
   .icon-btn.del:hover{color:var(--danger);}
@@ -386,7 +395,15 @@
   .m-bar.cont-right{border-top-right-radius:0;border-bottom-right-radius:0;margin-right:0;}
   .m-more2{z-index:1;align-self:center;font-size:10px;color:var(--muted);font-weight:700;padding:0 5px;cursor:pointer;}
   /* 월간 뷰: 달력 아래 그날 일정 리스트 헤더 */
-  .month-daylist-head{margin:26px 0 16px;font-size:17px;font-weight:800;color:var(--text);}
+  .month-daylist-head{
+    margin:26px 0 16px;font-size:17px;font-weight:800;color:var(--text);
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+  }
+  .day-add-btn{
+    border:none;background:var(--blue);color:#fff;font-weight:700;font-size:13.5px;
+    padding:9px 16px;border-radius:11px;cursor:pointer;box-shadow:var(--shadow-blue);flex:none;
+  }
+  .day-add-btn:hover{background:var(--blue-deep);}
   #monthDayList{position:relative;}
 
   @media (max-width:720px){
@@ -435,6 +452,16 @@
     outline:none;border-color:var(--blue);background:#fff;box-shadow:0 0 0 3px var(--blue-soft);
   }
   .field textarea{resize:vertical;min-height:56px;}
+  /* 반복 상세: 간격/종료 */
+  .field input[type=number]{
+    width:80px;border:1.5px solid var(--border);border-radius:10px;padding:9px 11px;
+    font-size:16px;font-family:inherit;background:var(--card-soft);color:var(--text);
+  }
+  .interval-line,.count-line{display:flex;align-items:center;gap:8px;}
+  .interval-line span,.count-line{font-size:13.5px;color:var(--muted);font-weight:600;}
+  .rep-end{display:flex;gap:16px;flex-wrap:wrap;margin-bottom:8px;}
+  .rep-end label{display:flex;align-items:center;gap:6px;font-size:13.5px;font-weight:600;color:var(--text);cursor:pointer;margin:0;}
+  .rep-end input{width:auto;margin:0;accent-color:var(--blue);cursor:pointer;}
   /* 모바일(아이폰)에서 입력칸 탭할 때 자동 확대 방지: 글자 16px 이상이면 확대 안 됨 */
   @media (max-width:768px){
     .field input[type=text],.field input[type=time],.field input[type=date],.field textarea,.field select{
@@ -606,7 +633,10 @@
         </div>
       </div>
       <div class="month-grid" id="monthGrid"></div>
-      <div class="month-daylist-head" id="monthDayHead"></div>
+      <div class="month-daylist-head" id="monthDayHead">
+        <span id="monthDayHeadText"></span>
+        <button class="day-add-btn" id="dayAddBtn">+ 추가</button>
+      </div>
       <div class="timeline" id="monthDayList"></div>
     </div>
 
@@ -667,15 +697,31 @@
         <option value="daily">매일</option>
         <option value="weekly">매주</option>
         <option value="monthly">매월 (같은 날짜)</option>
+        <option value="yearly">매년</option>
       </select>
+    </div>
+    <div class="field" id="repeatIntervalField" style="display:none;">
+      <label>반복 간격</label>
+      <div class="interval-line">
+        <input type="number" id="taskRepeatInterval" min="1" max="99" value="1">
+        <span id="repeatIntervalUnit">주마다</span>
+      </div>
     </div>
     <div class="field" id="repeatDaysField" style="display:none;">
       <label>반복 요일</label>
       <div class="weekday-picker" id="weekdayPicker"></div>
     </div>
-    <div class="field" id="repeatUntilField" style="display:none;">
-      <label>반복 종료일 (선택 — 비워두면 계속 반복)</label>
-      <input type="date" id="taskRepeatUntil">
+    <div class="field" id="repeatEndField" style="display:none;">
+      <label>반복 종료</label>
+      <div class="rep-end">
+        <label><input type="radio" name="repEnd" value="none" checked> 없음</label>
+        <label><input type="radio" name="repEnd" value="date"> 날짜</label>
+        <label><input type="radio" name="repEnd" value="count"> 횟수</label>
+      </div>
+      <input type="date" id="taskRepeatUntil" style="display:none;">
+      <div class="count-line" id="repeatCountLine" style="display:none;">
+        <input type="number" id="taskRepeatCount" min="1" max="999" value="10"> 회 반복
+      </div>
     </div>
     <div class="field" id="remindField">
       <label>알림</label>
@@ -748,7 +794,7 @@
 
   // ---- 신뢰 경계 새니타이즈(가져오기/클라우드) ----
   const MAX_TASKS = 5000, MAX_CATS = 200;
-  const REPEAT_TYPES = ["none","daily","weekly","monthly"];
+  const REPEAT_TYPES = ["none","daily","weekly","monthly","yearly"];
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const TIME_RE = /^\d{2}:\d{2}$/;
   function safeStr(v, max){ return (typeof v==="string" ? v : "").slice(0, max); }
@@ -770,7 +816,9 @@
     const days = Array.isArray(r.days)
       ? [...new Set(r.days.map(Number).filter(n=>Number.isInteger(n) && n>=0 && n<=6))]
       : [];
-    return { type, days, until: safeDate(r.until) };
+    const interval = (Number.isFinite(+r.interval) && +r.interval>=1) ? Math.min(99, Math.floor(+r.interval)) : 1;
+    const count = (Number.isFinite(+r.count) && +r.count>=1) ? Math.min(999, Math.floor(+r.count)) : 0;
+    return { type, days, interval, count, until: safeDate(r.until) };
   }
 
   const REMIND_VALUES = ["none","0","10","30","60","1440"];
@@ -945,7 +993,31 @@
   }
 
   // ---------- Recurrence logic ----------
+  // 반복 패턴(간격 포함)이 cur 날짜에 맞는지 (종료·skip 무시)
+  function repeatMatches(rep, start, cur){
+    const iv = Math.max(1, rep.interval||1);
+    const DAY = 86400000;
+    if(rep.type==="daily"){
+      return Math.round((cur-start)/DAY) % iv === 0;
+    }
+    if(rep.type==="weekly"){
+      if(!(rep.days||[]).includes(cur.getDay())) return false;
+      const sSun=new Date(start); sSun.setHours(0,0,0,0); sSun.setDate(sSun.getDate()-sSun.getDay());
+      const cSun=new Date(cur);   cSun.setHours(0,0,0,0); cSun.setDate(cSun.getDate()-cSun.getDay());
+      return Math.round((cSun-sSun)/(7*DAY)) % iv === 0;
+    }
+    if(rep.type==="monthly"){
+      if(cur.getDate()!==start.getDate()) return false;
+      return ((cur.getFullYear()-start.getFullYear())*12 + (cur.getMonth()-start.getMonth())) % iv === 0;
+    }
+    if(rep.type==="yearly"){
+      if(cur.getMonth()!==start.getMonth() || cur.getDate()!==start.getDate()) return false;
+      return (cur.getFullYear()-start.getFullYear()) % iv === 0;
+    }
+    return false;
+  }
   function occursOn(task, dateStr){
+    if(!task.date) return false;   // 날짜 없는 할일은 달력/날짜 뷰에 안 나옴
     if(dateStr < task.date) return false;
     if(task.repeat && task.repeat.until && dateStr > task.repeat.until) return false;
     if(task.skipDates && task.skipDates.includes(dateStr)) return false;
@@ -955,17 +1027,21 @@
       const end = (task.endDate && task.endDate >= task.date) ? task.endDate : task.date;
       return dateStr <= end;
     }
-    if(rep.type === "daily") return true;
-    if(rep.type === "weekly"){
-      const dow = new Date(dateStr+"T00:00:00").getDay();
-      return (rep.days||[]).includes(dow);
+    return repeatMatches(rep, new Date(task.date+"T00:00:00"), new Date(dateStr+"T00:00:00"));
+  }
+  // 반복의 n번째(1-based) 발생일 → "YYYY-MM-DD" (횟수 종료를 종료일로 환산할 때 사용)
+  function nthOccurrenceDate(startStr, rep, n){
+    const start = new Date(startStr+"T00:00:00");
+    const cur = new Date(start);
+    let cnt = 0;
+    for(let i=0;i<3660;i++){   // 최대 ~10년 탐색
+      if(repeatMatches(rep, start, cur)){
+        cnt++;
+        if(cnt>=n) return fmt(cur);
+      }
+      cur.setDate(cur.getDate()+1);
     }
-    if(rep.type === "monthly"){
-      const d1 = new Date(task.date+"T00:00:00").getDate();
-      const d2 = new Date(dateStr+"T00:00:00").getDate();
-      return d1 === d2;
-    }
-    return false;
+    return "";
   }
   function tasksForDate(dateStr){
     return tasks.filter(t=>occursOn(t, dateStr));
@@ -978,10 +1054,16 @@
   }
   function repeatLabel(rep){
     if(!rep || rep.type==="none") return "";
-    if(rep.type==="daily") return "↻ 매일 반복";
-    if(rep.type==="weekly") return "↻ 매주 " + (rep.days||[]).slice().sort().map(d=>WEEKDAYS_KO[d]).join(",") + " 반복";
-    if(rep.type==="monthly") return "↻ 매월 반복";
-    return "";
+    const iv = Math.max(1, rep.interval||1);
+    const every = (one, many) => iv>1 ? `${iv}${many}마다` : one;
+    let s = "↻ ";
+    if(rep.type==="daily") s += every("매일","일");
+    else if(rep.type==="weekly") s += every("매주","주") + " " + (rep.days||[]).slice().sort().map(d=>WEEKDAYS_KO[d]).join(",");
+    else if(rep.type==="monthly") s += every("매월","개월");
+    else if(rep.type==="yearly") s += every("매년","년");
+    if(rep.count>0) s += ` · ${rep.count}회`;
+    else if(rep.until) s += ` · ~${rep.until.slice(5).replace("-",".")}`;
+    return s;
   }
   function multiDayLabel(t, dateStr){
     const DAY = 86400000;
@@ -991,6 +1073,11 @@
     const total = Math.round((end-start)/DAY) + 1;
     const idx = Math.round((cur-start)/DAY) + 1;
     return `🧳 ${total-1}박 ${total}일 · ${idx}일차`;
+  }
+  // 여러 날 할일: 박/일 대신 날짜 범위만 (그냥 며칠에 걸쳐 하는 것)
+  function multiDayTodoLabel(t){
+    const md = s => { const d=new Date(s+"T00:00:00"); return (d.getMonth()+1)+"."+d.getDate(); };
+    return `🗓 ${md(t.date)}~${md(t.endDate)}`;
   }
 
   // ---------- Sidebar mini calendar ----------
@@ -1111,37 +1198,46 @@
     cont.querySelectorAll(".drag-handle").forEach(handle=>{
       const row = handle.closest(".task-row");
       if(!row) return;
-      let startY=0, moved=false;
+      let startY=0, moved=false, pid=null;
       const onMove=(e)=>{
+        if(pid!==null && e.pointerId!==pid) return;
+        e.preventDefault();               // 드래그 중 화면 스크롤 차단(터치)
         moved=true;
         row.style.transform = `translateY(${e.clientY-startY}px)`;
+        // 같은 날짜의 시간없는 형제들 중, 손가락 위치가 어느 칸의 중간점보다 위인 첫 칸 앞에 삽입
         const sibs=[...cont.querySelectorAll(".task-row.untimed")]
           .filter(s=> s!==row && s.dataset.date===row.dataset.date);
+        let ref=null;
         for(const sib of sibs){
           const r=sib.getBoundingClientRect();
-          if(e.clientY>r.top && e.clientY<r.bottom){
-            cont.insertBefore(row, (e.clientY < r.top + r.height/2) ? sib : sib.nextSibling);
-            startY=e.clientY; row.style.transform="";
-            break;
-          }
+          if(e.clientY < r.top + r.height/2){ ref=sib; break; }
+        }
+        const anchor = ref ? ref : (sibs.length ? sibs[sibs.length-1].nextSibling : null);
+        if(anchor!==row && anchor!==row.nextSibling){
+          cont.insertBefore(row, anchor);
+          startY=e.clientY; row.style.transform="";
         }
       };
-      const onUp=(e)=>{
-        try{ handle.releasePointerCapture(e.pointerId); }catch(_){}
+      const onEnd=(e)=>{
+        if(pid!==null && e.pointerId!==pid) return;
+        try{ handle.releasePointerCapture(pid); }catch(_){}
         handle.removeEventListener("pointermove", onMove);
-        handle.removeEventListener("pointerup", onUp);
+        handle.removeEventListener("pointerup", onEnd);
+        handle.removeEventListener("pointercancel", onEnd);
         row.style.transform=""; row.classList.remove("dragging");
         document.body.classList.remove("reordering");
+        pid=null;
         if(moved) commitOrder(cont, row.dataset.date);
       };
       handle.addEventListener("pointerdown",(e)=>{
         e.preventDefault();
-        startY=e.clientY; moved=false;
+        pid=e.pointerId; startY=e.clientY; moved=false;
         row.classList.add("dragging");
         document.body.classList.add("reordering");
-        try{ handle.setPointerCapture(e.pointerId); }catch(_){}
-        handle.addEventListener("pointermove", onMove);
-        handle.addEventListener("pointerup", onUp);
+        try{ handle.setPointerCapture(pid); }catch(_){}
+        handle.addEventListener("pointermove", onMove, {passive:false});
+        handle.addEventListener("pointerup", onEnd);
+        handle.addEventListener("pointercancel", onEnd);
       });
     });
   }
@@ -1164,6 +1260,14 @@
     else if(t.allDay){ whenText='종일'; whenCls='allday'; }
     else if(t.time){ whenText = t.time; whenCls='timed'; }
     else { whenText='미정'; whenCls='untimed'; }
+    // D-day: 일정=시작일 기준, 할일=마지막날(종료일) 기준. 오늘/미래만 표시
+    let ddayText = '';
+    const ddRef = (t.type==='todo') ? (t.endDate || t.date) : t.date;
+    if(ddRef){
+      const t0=new Date(); t0.setHours(0,0,0,0);
+      const days=Math.round((new Date(ddRef+"T00:00:00")-t0)/86400000);
+      if(days>=0) ddayText = (days===0) ? 'D-DAY' : ('D-'+days);
+    }
     return `
       <div class="row-when ${whenCls}">${whenText}</div>
       <div class="track">
@@ -1176,12 +1280,13 @@
             <div class="check ${done?'checked':''}" data-id="${t.id}" data-date="${dateStr}" style="${done?`background:${cat.color};border-color:${cat.color}`:''}">${done?'✓':''}</div>
             <h3>${t.important ? '<span class="task-imp" title="중요">★</span>' : ''}${escapeHtml(t.title)}</h3>
           </div>
+          ${ddayText ? `<span class="dday${ddayText==='D-DAY'?' today':''}">${ddayText}</span>` : ''}
           ${!t.time ? '<button class="drag-handle" title="드래그로 순서 이동" aria-label="순서 이동">⠿</button>' : ''}
         </div>
         ${t.location ? `<div class="task-desc">📍 ${escapeHtml(t.location)}</div>` : ''}
         ${t.desc ? `<div class="task-desc">${escapeHtml(t.desc)}</div>` : ''}
         ${isRepeating ? `<div class="repeat-tag">${repeatLabel(t.repeat)}</div>` : ''}
-        ${isMulti ? `<div class="repeat-tag" style="color:#2fa36f">${multiDayLabel(t, dateStr)}</div>` : ''}
+        ${isMulti ? `<div class="repeat-tag" style="color:#2fa36f">${t.type==='todo' ? multiDayTodoLabel(t) : multiDayLabel(t, dateStr)}</div>` : ''}
         <div class="task-meta">
           <span class="cat-tag" style="background:${cat.color}22;color:${cat.color}">${escapeHtml(cat.name)}</span>
           <div class="task-actions">
@@ -1262,14 +1367,14 @@
       cont.innerHTML = `<div class="empty-state"><div class="big">${type==="todo"?"✅":"📅"}</div>${type==="todo"?"등록된 할일이 없어요.":"등록된 일정이 없어요."}</div>`;
       return;
     }
-    let lastDate = "";
+    let lastDate = null;
     items.forEach(t=>{
       const dateStr = t.date;
       if(dateStr !== lastDate){
         lastDate = dateStr;
         const hd = document.createElement("div");
         hd.className = "list-date-head";
-        hd.textContent = new Date(dateStr+"T00:00:00").toLocaleDateString("ko-KR",{year:"numeric",month:"long",day:"numeric",weekday:"short"});
+        hd.textContent = dateStr ? new Date(dateStr+"T00:00:00").toLocaleDateString("ko-KR",{year:"numeric",month:"long",day:"numeric",weekday:"short"}) : "🗒 날짜 없음";
         cont.appendChild(hd);
       }
       const row = document.createElement("div");
@@ -1287,7 +1392,8 @@
   const taskCategorySel = document.getElementById("taskCategory");
   const repeatTypeSel = document.getElementById("taskRepeatType");
   const repeatDaysField = document.getElementById("repeatDaysField");
-  const repeatUntilField = document.getElementById("repeatUntilField");
+  const repeatIntervalField = document.getElementById("repeatIntervalField");
+  const repeatEndField = document.getElementById("repeatEndField");
   const weekdayPicker = document.getElementById("weekdayPicker");
 
   function fillCategorySelect(){
@@ -1312,10 +1418,21 @@
 
   function updateRepeatFieldsVisibility(){
     const type = repeatTypeSel.value;
+    const on = type !== "none";
+    repeatIntervalField.style.display = on ? "block" : "none";
     repeatDaysField.style.display = type==="weekly" ? "block" : "none";
-    repeatUntilField.style.display = type==="none" ? "none" : "block";
+    repeatEndField.style.display = on ? "block" : "none";
+    const unit = {daily:"일마다", weekly:"주마다", monthly:"개월마다", yearly:"년마다"}[type] || "";
+    document.getElementById("repeatIntervalUnit").textContent = unit;
+    updateRepeatEndVisibility();
+  }
+  function updateRepeatEndVisibility(){
+    const v = (document.querySelector('input[name="repEnd"]:checked')||{}).value || "none";
+    document.getElementById("taskRepeatUntil").style.display = v==="date" ? "block" : "none";
+    document.getElementById("repeatCountLine").style.display = v==="count" ? "block" : "none";
   }
   repeatTypeSel.addEventListener("change", updateRepeatFieldsVisibility);
+  document.querySelectorAll('input[name="repEnd"]').forEach(r=> r.addEventListener("change", updateRepeatEndVisibility));
 
   // 종일 체크 → 시간 입력 숨김
   const allDayCheck = document.getElementById("taskAllDay");
@@ -1356,11 +1473,12 @@
     document.getElementById("endLine").style.display = "";
     document.getElementById("taskTime").style.display = todo ? "none" : "";
     document.getElementById("taskEndTime").style.display = todo ? "none" : "";
-    document.getElementById("taskDateLabel").textContent = todo ? "기간" : "일시";
+    document.getElementById("taskDateLabel").textContent = todo ? "기간 (비워두면 날짜 없음)" : "일시";
     if(todo){
       repeatFieldEl.style.display = "none";
+      repeatIntervalField.style.display = "none";
       repeatDaysField.style.display = "none";
-      repeatUntilField.style.display = "none";
+      repeatEndField.style.display = "none";
     } else {
       repeatFieldEl.style.display = "";
       updateAllDay();
@@ -1391,10 +1509,14 @@
       document.getElementById("taskDesc").value = t.desc || "";
       document.getElementById("taskRemind").value = t.remind || "none";
       taskCategorySel.value = t.category;
-      const rep = t.repeat || {type:"none",days:[],until:""};
+      const rep = t.repeat || {type:"none",days:[],until:"",interval:1,count:0};
       repeatTypeSel.value = rep.type;
       editingRepeatDays = (rep.days||[]).slice();
+      document.getElementById("taskRepeatInterval").value = rep.interval || 1;
       document.getElementById("taskRepeatUntil").value = rep.until || "";
+      document.getElementById("taskRepeatCount").value = rep.count || 10;
+      { const m = (rep.count>0) ? "count" : (rep.until ? "date" : "none");
+        document.querySelectorAll('input[name="repEnd"]').forEach(r=> r.checked=(r.value===m)); }
     } else {
       editingType = "event";
       document.getElementById("taskId").value = "";
@@ -1411,7 +1533,10 @@
       taskCategorySel.value = categories[0].id;
       repeatTypeSel.value = "none";
       editingRepeatDays = [selectedDate.getDay()];
+      document.getElementById("taskRepeatInterval").value = 1;
       document.getElementById("taskRepeatUntil").value = "";
+      document.getElementById("taskRepeatCount").value = 10;
+      document.querySelectorAll('input[name="repEnd"]').forEach(r=> r.checked=(r.value==="none"));
     }
     renderWeekdayPicker();
     updateRepeatFieldsVisibility();
@@ -1431,11 +1556,13 @@
     const title = document.getElementById("taskTitle").value.trim();
     if(!title){ alert("제목을 입력해주세요."); return; }
     const id = document.getElementById("taskId").value;
-    const date = document.getElementById("taskDate").value || fmt(selectedDate);
+    const isTodo = editingType === "todo";
+    const dateInput = document.getElementById("taskDate").value;
+    const date = isTodo ? dateInput : (dateInput || fmt(selectedDate));  // 할일은 날짜 없이도 저장 가능
     let endDate = document.getElementById("taskEndDate").value || date;
-    if(endDate < date){ alert("종료일이 시작일보다 빠를 수 없어요."); return; }
-    const multiDay = endDate > date;               // 여러 날 일정
-    if(!multiDay) endDate = "";                     // 하루짜리는 endDate 비움(기존 로직 호환)
+    if(date && endDate < date){ alert("종료일이 시작일보다 빠를 수 없어요."); return; }
+    const multiDay = !!(date && endDate > date);   // 여러 날
+    if(!multiDay) endDate = "";
 
     const allDay = document.getElementById("taskAllDay").checked;
     const time = allDay ? "" : document.getElementById("taskTime").value;
@@ -1450,7 +1577,21 @@
     const remind = document.getElementById("taskRemind").value;
     if(remind !== "none") ensureNotifyPermission();
 
-    const isTodo = editingType === "todo";
+    // 반복 상세: 간격 + 종료(없음/날짜/횟수). 횟수는 N번째 발생일을 종료일로 환산해 저장
+    let repeatObj = {type:"none", days:[], interval:1, count:0, until:""};
+    if(!isTodo && repType!=="none"){
+      const interval = Math.max(1, parseInt(document.getElementById("taskRepeatInterval").value)||1);
+      const endType = (document.querySelector('input[name="repEnd"]:checked')||{}).value || "none";
+      const days = repType==="weekly" ? repDays : [];
+      let until="", count=0;
+      if(endType==="date") until = document.getElementById("taskRepeatUntil").value;
+      else if(endType==="count"){
+        count = Math.max(1, parseInt(document.getElementById("taskRepeatCount").value)||1);
+        until = nthOccurrenceDate(date, {type:repType, days, interval}, count);
+      }
+      repeatObj = {type:repType, days, interval, count, until};
+    }
+
     const data = {
       type: isTodo ? "todo" : "event",
       title,
@@ -1464,11 +1605,7 @@
       desc: document.getElementById("taskDesc").value.trim(),
       category: taskCategorySel.value,
       remind: isTodo ? "none" : remind,
-      repeat: isTodo ? {type:"none",days:[],until:""} : {
-        type: repType,
-        days: repType==="weekly" ? repDays : [],
-        until: repType==="none" ? "" : document.getElementById("taskRepeatUntil").value,
-      },
+      repeat: repeatObj,
     };
     if(id){
       const t = tasks.find(x=>x.id===id);
@@ -1478,7 +1615,7 @@
     }
     saveTasks();
     closeTaskModal();
-    selectedDate = new Date(data.date + "T00:00:00");
+    if(data.date) selectedDate = new Date(data.date + "T00:00:00");
     renderAll();
   });
 
@@ -1685,10 +1822,10 @@
   // 월간 뷰: 달력 아래 "선택한 날 일정" 리스트
   const monthDayListEl = document.getElementById("monthDayList");
   function renderMonthList(){
-    const head = document.getElementById("monthDayHead");
-    head.textContent = selectedDate.toLocaleDateString("ko-KR",{month:"long",day:"numeric",weekday:"long"});
+    document.getElementById("monthDayHeadText").textContent = selectedDate.toLocaleDateString("ko-KR",{month:"long",day:"numeric",weekday:"long"});
     renderTimeline(monthDayListEl);
   }
+  document.getElementById("dayAddBtn").addEventListener("click", ()=> openTaskModal(null));
   document.getElementById("monthPrev").addEventListener("click", ()=>{
     calViewDate.setMonth(calViewDate.getMonth()-1); renderMonth(); renderMiniCal();
   });
