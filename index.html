@@ -217,6 +217,24 @@
     font-size:13px;font-weight:700;cursor:pointer;white-space:nowrap;
   }
   .vt-btn.active{background:#fff;color:var(--blue);box-shadow:0 3px 10px rgba(27,30,40,.08);}
+
+  /* 빠른 추가(자연어 입력) */
+  .qa-bar{display:flex;gap:8px;margin-bottom:6px;align-items:flex-end;}
+  .qa-bar textarea{
+    flex:1;min-width:0;border:1.5px solid var(--border);background:var(--card-soft);color:var(--text);
+    border-radius:14px;padding:12px 14px;font-size:16px;font-family:inherit;outline:none;
+    line-height:1.4;min-height:48px;max-height:220px;resize:none;overflow-y:auto;
+    transition:border-color .12s ease,background .12s ease;
+  }
+  .qa-bar textarea::placeholder{color:var(--muted);}
+  .qa-bar textarea:focus{border-color:var(--blue);background:var(--surface);}
+  .qa-bar button{
+    border:none;background:var(--blue);color:#fff;font-weight:700;font-size:14px;height:48px;
+    padding:0 18px;border-radius:14px;cursor:pointer;box-shadow:var(--shadow-blue);flex:none;
+  }
+  .qa-bar button:hover{background:var(--blue-deep);}
+  .qa-hint{font-size:12px;color:var(--muted);margin:0 0 18px 4px;min-height:16px;}
+  .qa-hint.err{color:var(--danger);}
   /* 할일/일정 리스트: 날짜 구분 헤더 + 연결선 없음 */
   .list-date-head{font-size:13px;font-weight:800;color:var(--muted);margin:20px 0 10px 2px;letter-spacing:.01em;}
   .list-date-head:first-child{margin-top:2px;}
@@ -617,6 +635,12 @@
       <button class="vt-btn" data-view="todo">할일</button>
       <button class="vt-btn" data-view="event">일정</button>
     </div>
+
+    <div class="qa-bar">
+      <textarea id="qaInput" rows="1" placeholder="예: 8월 15일 오후 3시 팀회의  (줄바꿈하면 여러 개 한번에)" autocomplete="off"></textarea>
+      <button id="qaBtn">추가</button>
+    </div>
+    <div class="qa-hint" id="qaHint"></div>
 
     <div id="timelineView" style="display:none;">
       <div class="week-strip" id="weekStrip"></div>
@@ -1198,46 +1222,40 @@
     cont.querySelectorAll(".drag-handle").forEach(handle=>{
       const row = handle.closest(".task-row");
       if(!row) return;
-      let startY=0, moved=false, pid=null;
-      const onMove=(e)=>{
-        if(pid!==null && e.pointerId!==pid) return;
-        e.preventDefault();               // 드래그 중 화면 스크롤 차단(터치)
-        moved=true;
-        row.style.transform = `translateY(${e.clientY-startY}px)`;
-        // 같은 날짜의 시간없는 형제들 중, 손가락 위치가 어느 칸의 중간점보다 위인 첫 칸 앞에 삽입
-        const sibs=[...cont.querySelectorAll(".task-row.untimed")]
-          .filter(s=> s!==row && s.dataset.date===row.dataset.date);
-        let ref=null;
-        for(const sib of sibs){
-          const r=sib.getBoundingClientRect();
-          if(e.clientY < r.top + r.height/2){ ref=sib; break; }
-        }
-        const anchor = ref ? ref : (sibs.length ? sibs[sibs.length-1].nextSibling : null);
-        if(anchor!==row && anchor!==row.nextSibling){
-          cont.insertBefore(row, anchor);
-          startY=e.clientY; row.style.transform="";
-        }
-      };
-      const onEnd=(e)=>{
-        if(pid!==null && e.pointerId!==pid) return;
-        try{ handle.releasePointerCapture(pid); }catch(_){}
-        handle.removeEventListener("pointermove", onMove);
-        handle.removeEventListener("pointerup", onEnd);
-        handle.removeEventListener("pointercancel", onEnd);
-        row.style.transform=""; row.classList.remove("dragging");
-        document.body.classList.remove("reordering");
-        pid=null;
-        if(moved) commitOrder(cont, row.dataset.date);
-      };
       handle.addEventListener("pointerdown",(e)=>{
         e.preventDefault();
-        pid=e.pointerId; startY=e.clientY; moved=false;
+        let startY=e.clientY, moved=false;
         row.classList.add("dragging");
         document.body.classList.add("reordering");
-        try{ handle.setPointerCapture(pid); }catch(_){}
-        handle.addEventListener("pointermove", onMove, {passive:false});
-        handle.addEventListener("pointerup", onEnd);
-        handle.addEventListener("pointercancel", onEnd);
+        // 문서 전체에 리스너 → 커서가 손잡이를 벗어나도 끊기지 않음
+        const onMove=(ev)=>{
+          ev.preventDefault();            // 드래그 중 스크롤 차단(터치)
+          moved=true;
+          row.style.transform = `translateY(${ev.clientY-startY}px)`;
+          const sibs=[...cont.querySelectorAll(".task-row.untimed")]
+            .filter(s=> s!==row && s.dataset.date===row.dataset.date);
+          let ref=null;
+          for(const sib of sibs){
+            const r=sib.getBoundingClientRect();
+            if(ev.clientY < r.top + r.height/2){ ref=sib; break; }
+          }
+          const anchor = ref ? ref : (sibs.length ? sibs[sibs.length-1].nextSibling : null);
+          if(anchor!==row && anchor!==row.nextSibling){
+            cont.insertBefore(row, anchor);
+            startY=ev.clientY; row.style.transform="";
+          }
+        };
+        const onEnd=()=>{
+          document.removeEventListener("pointermove", onMove);
+          document.removeEventListener("pointerup", onEnd);
+          document.removeEventListener("pointercancel", onEnd);
+          row.style.transform=""; row.classList.remove("dragging");
+          document.body.classList.remove("reordering");
+          if(moved) commitOrder(cont, row.dataset.date);
+        };
+        document.addEventListener("pointermove", onMove, {passive:false});
+        document.addEventListener("pointerup", onEnd);
+        document.addEventListener("pointercancel", onEnd);
       });
     });
   }
@@ -1626,6 +1644,272 @@
       saveTasks(); closeTaskModal(); renderAll();
     }
   });
+
+  // ---------- 빠른 추가(자연어) ----------
+  // "8월 15일 오후 3시 팀회의" 같은 문장을 규칙으로 파싱. 외부 API·네트워크 안 씀(전부 로컬).
+  const QA_WD = "일월화수목금토";
+  const QA_REL = {"오늘":0,"낼":1,"내일":1,"모레":2,"내일모레":2,"글피":3};
+  const QA_MER = {"새벽":0,"아침":0,"오전":0,"낮":12,"점심":12,"오후":12,"저녁":12,"밤":12};
+  const QA_BARE_MER = {"아침":8,"점심":12,"저녁":18,"밤":21};
+  // 제목에서 지울 말꼬리. 문장 끝에서만 지움(제목 한가운데 단어는 안 건드림)
+  const QA_TAIL = /\s*(?:일정|스케줄|할\s?일)?\s*(?:좀)?\s*(?:추가|등록|생성|저장)?\s*(?:해줘|해주라|해줭|해라|하기|해|줘|요)?\s*$/;
+
+  function qaToday(){ const d=new Date(); d.setHours(0,0,0,0); return d; }
+  function qaCut(s, m){ return s.slice(0, m.index) + " " + s.slice(m.index + m[0].length); }
+  function qaShift(base, n){ const d=new Date(base); d.setDate(d.getDate()+n); return d; }
+
+  // 요일 → 날짜. pre가 "다음/담/다다음"이면 다음 주(주 시작=일요일) 기준, "이번"이면 이번 주, 없으면 다음 번 그 요일
+  function qaWeekday(ch, pre){
+    const t = QA_WD.indexOf(ch), today = qaToday();
+    if(pre==="다음"||pre==="담"||pre==="다다음"){
+      const ws = qaShift(today, -today.getDay());
+      return qaShift(ws, (pre==="다다음" ? 14 : 7) + t);
+    }
+    if(pre==="이번"||pre==="금"||pre==="이") return qaShift(qaShift(today,-today.getDay()), t);
+    const diff = (t - today.getDay() + 7) % 7;
+    return qaShift(today, diff===0 ? 7 : diff);   // 오늘과 같은 요일이면 다음 주 그 요일
+  }
+
+  // 날짜 하나 뽑기. prevMonth: 범위 종료일에서 "17일"처럼 월이 생략됐을 때 상속할 월
+  function qaGrabDate(s, prevMonth){
+    const today = qaToday(), y = today.getFullYear();
+    const mk = (yy,mm,dd)=> new Date(yy, mm-1, dd);
+    const roll = (d)=>{ if(d < today) d.setFullYear(d.getFullYear()+1); return d; };  // 이미 지난 날짜면 내년
+    let m;
+    if((m = s.match(/(내일모레|오늘|내일|모레|글피|낼)/)))              return [qaShift(today, QA_REL[m[1]]), m];
+    if((m = s.match(/(\d+)\s*(일|주일|주|달|개월)\s*(?:뒤|후|있다가)/))){
+      const n = +m[1], u = m[2];
+      return [qaShift(today, u==="일" ? n : (u==="주"||u==="주일") ? n*7 : n*30), m];
+    }
+    if((m = s.match(/(다다음|다음|담|이번|금)?\s*주\s*([일월화수목금토])(?:요일|욜)?/)))  return [qaWeekday(m[2], m[1]||""), m];
+    if((m = s.match(/(다다음|다음|담|이번)?\s*([일월화수목금토])(?:요일|욜)/)))          return [qaWeekday(m[2], m[1]||""), m];
+    if((m = s.match(/(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일?/))){
+      const d = mk(m[1] ? +m[1] : y, +m[2], +m[3]);
+      return [m[1] ? d : roll(d), m];
+    }
+    if((m = s.match(/(\d{1,2})\s*[\/.]\s*(\d{1,2})(?![\/.\d])/)))       return [roll(mk(y, +m[1], +m[2])), m];
+    if((m = s.match(/(다음|담)\s*달/))){ const d=new Date(today); d.setMonth(d.getMonth()+1); return [d, m]; }
+    if((m = s.match(/(\d{1,2})\s*일(?!\s*(?:마다|뒤|후|간|째|치))/))){
+      const d = mk(y, prevMonth || (today.getMonth()+1), +m[1]);
+      if(!prevMonth && d < today) d.setMonth(d.getMonth()+1);           // 이번 달에 이미 지났으면 다음 달
+      return [d, m];
+    }
+    return null;
+  }
+
+  // 시각 하나 뽑기 → ["HH:MM", match] / 말꼬리만 있는 아침·점심·저녁은 제목 보존 위해 안 지움
+  function qaGrabTime(s){
+    const fin = (h, mi, mer)=>{
+      if(mer){ const add = QA_MER[mer]; if(add===12 && h<12) h+=12; else if(add===0 && h===12) h=0; }
+      else if(h>=1 && h<=7) h+=12;                                      // 맨숫자 1~7시는 오후로 봄
+      if(h>23) h-=12;
+      return String(h).padStart(2,"0")+":"+String(mi).padStart(2,"0");
+    };
+    let m;
+    if((m = s.match(/(?:(새벽|아침|오전|낮|점심|오후|저녁|밤)\s*)?(\d{1,2})\s*시\s*(?:(반)|(\d{1,2})\s*분)?/)))
+      return [fin(+m[2], m[3] ? 30 : (m[4] ? +m[4] : 0), m[1]), m];
+    if((m = s.match(/(?:(새벽|아침|오전|낮|점심|오후|저녁|밤)\s*)?([01]?\d|2[0-3]):([0-5]\d)/)))
+      return [fin(+m[2], +m[3], m[1]), m];
+    if((m = s.match(/(?:^|\s)(아침|점심|저녁|밤)(?=\s|$)/)))             // 홀로 떨어진 낱말이면 제목에서 뺌
+      return [String(QA_BARE_MER[m[1]]).padStart(2,"0")+":00", m];
+    if((m = s.match(/(아침|점심|저녁|밤)/)))                              // "점심약속"처럼 붙어 있으면 제목 보존
+      return [String(QA_BARE_MER[m[1]]).padStart(2,"0")+":00", null];
+    return null;
+  }
+
+  const QA_REPEAT = [
+    [/평일(?:마다|에)?/,           ()=>({type:"weekly", days:[1,2,3,4,5], interval:1})],
+    [/주말(?:마다|에)?/,           ()=>({type:"weekly", days:[0,6], interval:1})],
+    [/(?:매일|날마다)/,            ()=>({type:"daily",   interval:1})],
+    [/(?:매년|해마다)/,            ()=>({type:"yearly",  interval:1})],
+    [/(?:매달|매월|달마다)/,       ()=>({type:"monthly", interval:1})],
+    [/격주/,                       ()=>({type:"weekly",  interval:2})],
+    [/(\d+)\s*주\s*마다/,          m=>({type:"weekly",  interval:+m[1]})],
+    [/(\d+)\s*일\s*마다/,          m=>({type:"daily",   interval:+m[1]})],
+    [/(\d+)\s*개?월\s*마다/,       m=>({type:"monthly", interval:+m[1]})],
+    [/매주/,                       ()=>({type:"weekly",  interval:1})],
+  ];
+
+  // 카테고리 추측: 원문에서 찾음(제목에서 안 지움). 사용자가 만든 카테고리 이름이 우선
+  const QA_CAT_HINT = [
+    [/운동|헬스|런닝|러닝|요가|수영|등산|축구|농구|골프|필라테스|PT/i, "exercise"],
+    [/회의|미팅|출장|보고|업무|면접|발표|마감|세미나|워크샵|결재/,      "work"],
+    [/점심|저녁|아침|식사|밥|회식|카페|술|맛집|디너|런치/,             "meal"],
+  ];
+  function qaGuessCat(raw){
+    const hit = categories.find(c=> c.name && raw.includes(c.name));
+    if(hit) return hit.id;
+    for(const [re, id] of QA_CAT_HINT)
+      if(re.test(raw) && categories.some(c=>c.id===id)) return id;
+    return categories[0].id;
+  }
+
+  function qaParse(line){
+    const raw = line.trim();
+    if(!raw) return null;
+    let s = " " + raw + " ", m;
+    const p = { type:"event", title:"", date:"", endDate:"", time:"", endTime:"", allDay:false,
+                important:false, location:"", category:"",
+                repeat:{type:"none", days:[], interval:1, count:0, until:""} };
+
+    if((m = s.match(/\[?\s*할\s?일\s*\]?/))){ p.type = "todo"; s = qaCut(s, m); }
+    if((m = s.match(/(?:중요|긴급|!+|★|⭐)/))){ p.important = true; s = qaCut(s, m); }
+    if((m = s.match(/(?:하루\s?)?종일/))){ p.allDay = true; s = qaCut(s, m); }
+
+    // 반복 — 날짜 파싱보다 먼저(매주 수요일의 "수요일"을 날짜로 오해하지 않게)
+    for(const [re, make] of QA_REPEAT){
+      const rm = s.match(re);
+      if(!rm) continue;
+      Object.assign(p.repeat, make(rm));
+      s = qaCut(s, rm);
+      if(p.repeat.type === "weekly" && !p.repeat.days.length){
+        // 반복 키워드 바로 뒤에 붙은 요일 묶음만 인정("매주 월수금", "매주 화,목")
+        const dm = s.slice(rm.index).match(/^\s*([일월화수목금토](?:\s*[,·]?\s*[일월화수목금토])*)\s*(?:요일|욜)?/);
+        if(dm){
+          p.repeat.days = [...new Set(dm[1].replace(/[^일월화수목금토]/g,"").split("").map(c=>QA_WD.indexOf(c)))].sort();
+          s = qaCut(s, Object.assign(dm, {index: rm.index + dm.index}));
+        }
+      }
+      break;
+    }
+
+    // 날짜(시작 → 종료)
+    let g = qaGrabDate(s, 0);
+    if(g){
+      p.date = fmt(g[0]); s = qaCut(s, g[1]);
+      const g2 = qaGrabDate(s, g[0].getMonth()+1);
+      if(g2 && fmt(g2[0]) > p.date){ p.endDate = fmt(g2[0]); s = qaCut(s, g2[1]); }
+    }
+
+    // 시각(시작 → 종료). 할일은 시간 개념 없음
+    if(p.type === "event" && !p.allDay){
+      const t = qaGrabTime(s);
+      if(t){
+        p.time = t[0];
+        if(t[1]) s = qaCut(s, t[1]);
+        const t2 = t[1] ? qaGrabTime(s) : null;
+        if(t2 && t2[1] && t2[0] > p.time){ p.endTime = t2[0]; s = qaCut(s, t2[1]); }
+      }
+    }
+
+    if(p.type === "event" && (m = s.match(/(\S{2,12}?)에서/))){ p.location = m[1]; s = qaCut(s, m); }
+
+    // 반복인데 시작일이 없으면 첫 발생일을 시작일로
+    if(!p.date && p.repeat.type !== "none")
+      p.date = fmt(p.repeat.type==="weekly" && p.repeat.days.length ? qaWeekday(QA_WD[p.repeat.days[0]], "") : qaToday());
+    if(!p.date && p.type === "event") p.date = fmt(selectedDate);        // 일정은 날짜 필수 → 선택된 날
+    if(p.repeat.type === "weekly" && !p.repeat.days.length)
+      p.repeat.days = [new Date(p.date+"T00:00:00").getDay()];
+    if(p.endDate) p.repeat = {type:"none", days:[], interval:1, count:0, until:""};  // 여러 날 + 반복은 앱에서 동시 불가
+
+    p.title = s.replace(/[~\-–—]/g," ").replace(/\s*(?:에|부터|까지|쯤|경|께|으로|로)\s+/g," ")
+               .replace(QA_TAIL, "").replace(/[,·]+/g," ").replace(/\s+/g," ").trim();
+    if(!p.title) return null;
+    p.category = qaGuessCat(raw);
+    return p;
+  }
+
+  function qaToTask(p){
+    return Object.assign({ id:uid(), doneDates:[], skipDates:[], order:Date.now() }, {
+      type:p.type, title:p.title, location:p.location, important:p.important,
+      date:p.date, endDate:p.endDate,
+      time: p.type==="todo" ? "" : p.time, endTime: p.type==="todo" ? "" : p.endTime,
+      allDay: p.type==="todo" ? true : (p.allDay || !p.time),
+      desc:"", category:p.category, remind:"none", repeat:p.repeat,
+    });
+  }
+
+  // 한 줄이면 모달에 채워서 보여주고(확인 후 저장), 여러 줄이면 확인 한 번 받고 한꺼번에 저장
+  function qaFillModal(p){
+    openTaskModal(null);
+    editingType = p.type;
+    document.getElementById("taskTitle").value = p.title;
+    document.getElementById("taskImportant").checked = p.important;
+    document.getElementById("taskLocation").value = p.location;
+    document.getElementById("taskDate").value = p.date;
+    document.getElementById("taskEndDate").value = p.endDate || p.date;
+    document.getElementById("taskTime").value = p.time;
+    document.getElementById("taskEndTime").value = p.endTime;
+    document.getElementById("taskAllDay").checked = p.allDay;
+    taskCategorySel.value = p.category;
+    repeatTypeSel.value = p.repeat.type;
+    document.getElementById("taskRepeatInterval").value = p.repeat.interval;
+    editingRepeatDays = p.repeat.days.slice();
+    renderWeekdayPicker();
+    updateTypeFields();
+    updateRepeatFieldsVisibility();
+    updateRepeatAvailability();
+  }
+
+  const qaInput = document.getElementById("qaInput"), qaHint = document.getElementById("qaHint");
+  function qaSay(msg, isErr){ qaHint.textContent = msg||""; qaHint.classList.toggle("err", !!isErr); }
+  function qaPreview(p){
+    const d = p.date ? p.date.slice(5).replace("-",".") : "날짜없음";
+    return `${d}${p.endDate ? "~"+p.endDate.slice(5).replace("-",".") : ""} ${p.time||""} ${p.title}`.replace(/\s+/g," ").trim();
+  }
+  function qaRun(){
+    const lines = qaInput.value.split("\n").map(x=>x.trim()).filter(Boolean);
+    if(!lines.length) return;
+    const parsed = lines.map(qaParse), bad = lines.filter((_,i)=>!parsed[i]);
+    const ok = parsed.filter(Boolean);
+    if(!ok.length){ qaSay("못 알아들었어요. 예) 8월 15일 오후 3시 팀회의", true); return; }
+    if(ok.length === 1 && !bad.length){
+      qaInput.value = ""; qaGrow(); qaSay("");
+      qaFillModal(ok[0]);                       // 확인 후 저장 버튼 누르면 들어감
+      return;
+    }
+    if(!confirm(ok.map(qaPreview).join("\n") + "\n\n총 " + ok.length + "개를 추가할까요?")) return;
+    ok.forEach(p=> tasks.push(qaToTask(p)));
+    saveTasks();
+    qaInput.value = ""; qaGrow();
+    qaSay(ok.length + "개 추가됨" + (bad.length ? " · 못 읽은 줄: " + bad.join(" / ") : ""), !!bad.length);
+    const first = ok.find(p=>p.date);
+    if(first) selectedDate = new Date(first.date + "T00:00:00");
+    renderAll();
+  }
+  document.getElementById("qaBtn").addEventListener("click", qaRun);
+  // 폰엔 Shift가 없음 → 터치 기기는 Enter=줄바꿈(제출은 추가 버튼), 데스크톱은 Enter=제출·Shift+Enter=줄바꿈
+  const qaTouch = window.matchMedia("(hover:none)").matches;
+  qaInput.addEventListener("keydown", (e)=>{
+    if(e.key==="Enter" && !e.shiftKey && !qaTouch){ e.preventDefault(); qaRun(); }
+  });
+  function qaGrow(){ qaInput.style.height = "auto"; qaInput.style.height = (qaInput.scrollHeight + 3) + "px"; }
+  qaInput.addEventListener("input", ()=>{
+    qaGrow();
+    const lines = qaInput.value.split("\n").filter(x=>x.trim());
+    if(lines.length === 1){ const p = qaParse(lines[0]); qaSay(p ? "→ " + qaPreview(p) : ""); }
+    else qaSay(lines.length > 1 ? lines.length + "줄 · 추가 누르면 한꺼번에" : "");
+  });
+
+  // 파서 자체 점검 — 주소 끝에 ?qatest 붙이고 열면 콘솔에 결과 나옴
+  function qaSelfTest(){
+    const T = qaToday(), pad = n=>String(n).padStart(2,"0");
+    const iso = d=> d.getFullYear()+"-"+pad(d.getMonth()+1)+"-"+pad(d.getDate());
+    const cases = [
+      ["8월 15일 오후 3시 팀회의",        p=> p.time==="15:00" && p.title==="팀회의" && p.date.endsWith("-08-15")],
+      ["내일 점심약속",                    p=> p.date===iso(qaShift(T,1)) && p.time==="12:00" && p.title==="점심약속"],
+      ["모레 9시 강남역에서 미팅 추가해줘", p=> p.date===iso(qaShift(T,2)) && p.time==="09:00" && p.location==="강남역" && p.title==="미팅"],
+      ["매주 수요일 운동",                 p=> p.repeat.type==="weekly" && p.repeat.days.join()==="3" && p.title==="운동"],
+      ["평일 아침 8시 스트레칭",           p=> p.repeat.days.join()==="1,2,3,4,5" && p.time==="08:00"],
+      ["격주 금요일 청소",                 p=> p.repeat.interval===2 && p.repeat.days.join()==="5"],
+      ["8/15~8/17 여름휴가",               p=> p.date.endsWith("-08-15") && p.endDate.endsWith("-08-17")],
+      ["3시~5시 스터디",                   p=> p.time==="15:00" && p.endTime==="17:00" && p.title==="스터디"],
+      ["할일 우유 사기",                   p=> p.type==="todo" && p.time==="" && p.title==="우유 사기"],
+      ["중요 12월 25일 크리스마스",        p=> p.important && p.date.endsWith("-12-25")],
+      ["매달 15일 월세 이체",              p=> p.repeat.type==="monthly" && p.date.endsWith("-15")],
+      ["다음주 월요일 병원",               p=> p.title==="병원" && new Date(p.date+"T00:00:00").getDay()===1],
+      ["월요일 아침 회사에서 발표 준비",    p=> p.time==="08:00" && p.location==="회사" && p.title==="발표 준비"],
+      ["12월 31일부터 1월 2일까지 여행",    p=> p.endDate > p.date && p.title==="여행"],
+      ["ㅁㄴㅇㄹ",                          p=> p && p.title==="ㅁㄴㅇㄹ"],
+    ];
+    let fail = 0;
+    cases.forEach(([line, chk])=>{
+      const p = qaParse(line), ok = (()=>{ try{ return !!(p && chk(p)); }catch(e){ return false; } })();
+      if(!ok){ fail++; console.error("FAIL:", line, p); } else console.log("ok:", line, "→", qaPreview(p));
+    });
+    console.log(fail ? fail+"개 실패" : "전부 통과 ("+cases.length+")");
+  }
+  if(location.search.includes("qatest")) qaSelfTest();
 
   // ---------- Category Modal ----------
   const catOverlay = document.getElementById("catOverlay");
