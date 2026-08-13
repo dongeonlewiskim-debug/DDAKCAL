@@ -47,6 +47,7 @@
     --shadow-blue:0 14px 30px rgba(240,114,143,.38);
     --surface:#ffffff;
     --surface-hover:#eef0f4;
+    --sel-tint:rgba(240,114,143,.15);   /* 선택한 날 칸에 덧칠하는 반투명 분홍 */
   }
   /* ===== 다크 테마 (data-theme="dark") ===== */
   :root[data-theme="dark"]{
@@ -60,6 +61,7 @@
     --shadow-blue:0 14px 30px rgba(240,114,143,.30);
     --surface:#1f2129;
     --surface-hover:#262933;
+    --sel-tint:rgba(240,114,143,.24);   /* 어두운 배경 위에선 더 진해야 보임 */
     color-scheme:dark;
   }
   /* 흰색으로 하드코딩됐던 표면들 — 다크에서만 덮어씀 */
@@ -71,9 +73,15 @@
   :root[data-theme="dark"] .cat-item .cat-del:hover{background:var(--surface);}
   :root[data-theme="dark"] .m-head,
   :root[data-theme="dark"] .m-cell{background:var(--surface);}
-  :root[data-theme="dark"] .m-cell:hover{background:var(--surface-hover);}
+  :root[data-theme="dark"] .m-cell:not(.selected):hover{background:var(--surface-hover);}
   :root[data-theme="dark"] .m-cell.other{background:#171921;}
   :root[data-theme="dark"] .m-cell.other .m-daynum{color:#4a4e5a;}
+  /* 위 .m-cell 규칙들이 background 단축속성이라 틴트를 지워버림 → 다크에서도 선택칸을 다시 명시 */
+  :root[data-theme="dark"] .m-cell.selected,
+  :root[data-theme="dark"] .m-cell.other.selected{
+    background:var(--surface);
+    background-image:linear-gradient(var(--sel-tint), var(--sel-tint));
+  }
   :root[data-theme="dark"] .modal{background:var(--surface);box-shadow:0 24px 60px rgba(0,0,0,.6);}
   :root[data-theme="dark"] .field input[type=text],
   :root[data-theme="dark"] .field input[type=time],
@@ -117,7 +125,7 @@
     display:flex;align-items:center;gap:10px;
     font-weight:800;font-size:18px;letter-spacing:-.01em;
   }
-  .logo .dot{width:9px;height:9px;border-radius:50%;background:var(--blue);}
+  .logo .mark{width:1.15em;height:1.15em;object-fit:contain;flex:none;}
   .cal-header{
     display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;
   }
@@ -233,7 +241,10 @@
     padding:0 18px;border-radius:14px;cursor:pointer;box-shadow:var(--shadow-blue);flex:none;
   }
   .qa-bar button:hover{background:var(--blue-deep);}
-  .qa-hint{font-size:12px;color:var(--muted);margin:0 0 18px 4px;min-height:16px;}
+  .qa-hint{
+    font-size:12px;color:var(--muted);margin:0 0 18px 4px;min-height:16px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;   /* 두 줄로 안 넘어가게 */
+  }
   .qa-hint.err{color:var(--danger);}
   /* 할일/일정 리스트: 날짜 구분 헤더 + 연결선 없음 */
   .list-date-head{font-size:13px;font-weight:800;color:var(--muted);margin:20px 0 10px 2px;letter-spacing:.01em;}
@@ -250,13 +261,19 @@
   }
   .week-day:hover{background:var(--card-soft);}
   .week-day .wd{font-size:13px;color:var(--muted);font-weight:600;}
-  .week-day .dnum{font-size:20px;font-weight:800;margin-top:6px;color:var(--text);}
-  .week-day.selected{background:none;}
-  .week-day.selected .wd,.week-day.selected .dnum{color:var(--blue);}
-  .week-day .dot{
-    width:5px;height:5px;border-radius:50%;background:var(--blue);margin:5px auto 0;opacity:0;
+  /* 선택한 날 = 채워진 원 + 흰 글씨(라이트/다크 공통). 숫자를 원으로 만들어야 하니 flex 중앙정렬 */
+  .week-day .dnum{
+    font-size:20px;font-weight:800;margin:6px auto 0;color:var(--text);
+    width:36px;height:36px;border-radius:50%;
+    display:flex;align-items:center;justify-content:center;
+    transition:background .12s ease,color .12s ease;
   }
-  .week-day.selected .dot{opacity:1;}
+  .week-day.selected .wd{color:var(--blue);}
+  .week-day.selected .dnum{background:var(--blue);color:#fff;box-shadow:var(--shadow-blue);}
+  /* 점은 '이 날 일정 있음' 표시(있는 날만 DOM에 들어감). 선택 표시는 위의 원이 맡음 */
+  .week-day .dot{
+    width:5px;height:5px;border-radius:50%;background:var(--blue);margin:5px auto 0;
+  }
 
   .timeline{position:relative;}
   .task-row{display:flex;gap:16px;position:relative;}
@@ -392,9 +409,16 @@
     min-width:0;overflow:hidden;cursor:pointer;
     padding:5px 4px 0;transition:background .1s ease;
   }
-  .m-cell:hover{background:#fafbfe;}
+  .m-cell:not(.selected):hover{background:#fafbfe;}
   .m-cell.other{background:#fbfbfc;}
-  .m-cell.selected{background:var(--blue-soft);}
+  /* 선택한 날 = 칸 전체에 반투명 분홍. 배경색 위에 틴트를 '덧칠'해서 라이트/다크 둘 다 자연스럽게 */
+  .m-cell.selected,
+  .m-cell.other.selected{
+    background:#fff;
+    background-image:linear-gradient(var(--sel-tint), var(--sel-tint));
+  }
+  /* 오늘 = 칸 테두리 분홍. border 대신 inset 그림자라 칸 크기가 안 밀림 */
+  .m-cell.today{box-shadow:inset 0 0 0 2px var(--blue);}
   .m-daynum{
     font-size:13px;font-weight:700;color:var(--text);
     width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:50%;
@@ -534,6 +558,11 @@
     #miniCalBlock{display:none;}
     /* 모바일: 카테고리 영역 + 내보내기/가져오기 숨김 (로그아웃은 유지) */
     #catSection{display:none;}
+    /* 모바일 사이드바는 상단 띠일 뿐 — 여백 줄이고 로그아웃은 작은 알약으로 우측 정렬 */
+    .sidebar{padding:14px 20px;gap:8px;}
+    .user-greeting{margin-top:0;}
+    .sidebar-footer{margin-top:0;justify-content:flex-end;}
+    .ghost-btn{flex:none;padding:6px 14px;font-size:12px;border-radius:9px;}
   }
 
   *:focus-visible{outline:2px solid var(--blue);outline-offset:2px;}
@@ -553,7 +582,7 @@
     display:flex;align-items:center;justify-content:center;gap:11px;
     font-weight:800;font-size:32px;letter-spacing:-.02em;margin-bottom:8px;
   }
-  .login-logo .dot{width:12px;height:12px;border-radius:50%;background:var(--blue);}
+  .login-logo .mark{width:1.05em;height:1.05em;object-fit:contain;flex:none;}
   .login-tag{color:var(--text);font-size:15px;font-weight:700;margin:0 0 20px;}
   .login-sub{color:var(--muted);font-size:13.5px;line-height:1.6;margin:0 0 28px;font-weight:500;}
   .user-greeting{
@@ -585,7 +614,7 @@
   <div class="sidebar">
     <div>
       <div class="logo-row">
-        <div class="logo"><span class="dot"></span>DDAKCAL</div>
+        <div class="logo"><img class="mark" src="logo.png" alt="">DDAKCAL</div>
         <button class="theme-toggle" id="themeToggle" title="다크/라이트 전환" aria-label="테마 전환">🌙</button>
       </div>
       <div class="user-greeting" id="userGreeting"></div>
@@ -637,10 +666,10 @@
     </div>
 
     <div class="qa-bar">
-      <textarea id="qaInput" rows="1" placeholder="예: 8월 15일 오후 3시 팀회의  (줄바꿈하면 여러 개 한번에)" autocomplete="off"></textarea>
+      <textarea id="qaInput" rows="1" placeholder="예: 내일 오후 3시 팀회의" autocomplete="off"></textarea>
       <button id="qaBtn">추가</button>
     </div>
-    <div class="qa-hint" id="qaHint"></div>
+    <div class="qa-hint" id="qaHint">줄바꿈하면 여러 개 한번에</div>
 
     <div id="timelineView" style="display:none;">
       <div class="week-strip" id="weekStrip"></div>
@@ -792,7 +821,7 @@
 <!-- Login gate (shown only in cloud mode) -->
 <div class="login-gate" id="loginGate">
   <div class="login-card">
-    <div class="login-logo"><span class="dot"></span> DDAKCAL</div>
+    <div class="login-logo"><img class="mark" src="logo.png" alt=""> DDAKCAL</div>
     <p class="login-tag">나에게 딱 맞는 스케줄러</p>
     <p class="login-sub">Google 계정으로 로그인하면<br>모든 기기에서 일정이 함께 보여요.</p>
     <div id="gisBtn" style="display:flex;justify-content:center;min-height:44px;"></div>
@@ -1842,7 +1871,8 @@
   }
 
   const qaInput = document.getElementById("qaInput"), qaHint = document.getElementById("qaHint");
-  function qaSay(msg, isErr){ qaHint.textContent = msg||""; qaHint.classList.toggle("err", !!isErr); }
+  const QA_IDLE = "줄바꿈하면 여러 개 한번에";
+  function qaSay(msg, isErr){ qaHint.textContent = msg || QA_IDLE; qaHint.classList.toggle("err", !!isErr); }
   function qaPreview(p){
     const d = p.date ? p.date.slice(5).replace("-",".") : "날짜없음";
     return `${d}${p.endDate ? "~"+p.endDate.slice(5).replace("-",".") : ""} ${p.time||""} ${p.title}`.replace(/\s+/g," ").trim();
@@ -1861,8 +1891,8 @@
     if(!confirm(ok.map(qaPreview).join("\n") + "\n\n총 " + ok.length + "개를 추가할까요?")) return;
     ok.forEach(p=> tasks.push(qaToTask(p)));
     saveTasks();
-    qaInput.value = ""; qaGrow();
-    qaSay(ok.length + "개 추가됨" + (bad.length ? " · 못 읽은 줄: " + bad.join(" / ") : ""), !!bad.length);
+    qaInput.value = bad.join("\n"); qaGrow();     // 못 읽은 줄은 고쳐 쓰라고 입력칸에 남겨둠
+    qaSay(ok.length + "개 추가됨" + (bad.length ? " · " + bad.length + "줄은 못 읽어서 남겨뒀어요" : ""), !!bad.length);
     const first = ok.find(p=>p.date);
     if(first) selectedDate = new Date(first.date + "T00:00:00");
     renderAll();
