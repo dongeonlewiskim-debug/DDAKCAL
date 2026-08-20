@@ -1599,6 +1599,7 @@
     function initGoogleSignIn(){
       if(!(window.google && google.accounts && google.accounts.id)){
         if(gisTries++ < 40) return setTimeout(initGoogleSignIn, 250); // 스크립트 로딩 대기
+        loginBlocked();   // 10초를 기다려도 안 뜨면 조용히 포기하지 말고 이유를 알려준다
         return;
       }
       google.accounts.id.initialize({
@@ -3287,7 +3288,22 @@
 
   renderAll();
   // 로컬 모드(파이어베이스 미설정)면 로그인 게이트가 뜰 이유가 없으니 바로 감춤
-  if(CLOUD_ENABLED){ showLoginGate(); initCloud(); } else { hideLoginGate(); }
+  // try/catch가 없으면 파이어베이스 스크립트가 차단됐을 때 여기서 터지고
+  // 아래 코드(랜딩 시연 등)가 통째로 안 돌아 → 안내도 없는 먹통 화면이 됨
+  if(CLOUD_ENABLED){
+    showLoginGate();
+    try{ initCloud(); }
+    catch(err){ console.error("클라우드 초기화 실패:", err); loginBlocked(); }
+  } else hideLoginGate();
+
+  function loginBlocked(){
+    const n = document.querySelector(".lp-note");
+    if(n){
+      n.textContent = "지금 로그인 서버에 연결할 수 없어요. 잠시 뒤 새로고침하거나, 광고 차단·회사 네트워크를 확인해 주세요.";
+      n.style.color = "var(--miss)";
+      n.style.fontWeight = "700";
+    }
+  }
 
   // ---------- 랜딩 히어로: 한 줄이 일정이 되는 과정 시연 ----------
   // 문장을 조각으로 들고 있다가 한 글자씩 찍고, 다 찍히면 결과 카드를 띄운다.
