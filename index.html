@@ -434,6 +434,9 @@
   }
   .m-bar.cont-left{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:0;}
   .m-bar.cont-right{border-top-right-radius:0;border-bottom-right-radius:0;margin-right:0;}
+  /* 완료/못함 — 카드와 같은 규칙(완료=실선, 못함=물결). 색은 위 JS에서 회색으로 뺌 */
+  .m-bar.done{text-decoration:line-through;}
+  .m-bar.missed{text-decoration:line-through wavy;}
   .m-more2{z-index:1;align-self:center;font-size:10px;color:var(--muted);font-weight:700;padding:0 5px;cursor:pointer;}
   /* 월간 뷰: 달력 아래 그날 일정 리스트 헤더 */
   .month-daylist-head{
@@ -2048,10 +2051,11 @@
             const s = t.date > weekStart ? t.date : weekStart;
             const e = t.endDate < weekEnd ? t.endDate : weekEnd;
             segs.push({t, startCol: ws.indexOf(s), endCol: ws.indexOf(e),
-                       contLeft: t.date < weekStart, contRight: t.endDate > weekEnd, multi:true});
+                       contLeft: t.date < weekStart, contRight: t.endDate > weekEnd, multi:true,
+                       key: t.date});   // 완료/못함 조회용 날짜 키(여러날은 시작일 기준 — 리스트와 동일)
           }
         } else {
-          for(let c=0;c<7;c++){ if(occursOn(t, ws[c])) segs.push({t, startCol:c, endCol:c, multi:false}); }
+          for(let c=0;c<7;c++){ if(occursOn(t, ws[c])) segs.push({t, startCol:c, endCol:c, multi:false, key: ws[c]}); }
         }
       });
       // 레인 배정: 여러날 먼저(길이 긴 순) → 단일(시간순), 겹치면 다음 레인
@@ -2107,15 +2111,19 @@
       segs.forEach(seg=>{
         if(seg.lane>=MAX_LANES) return;
         const t=seg.t, cat=catById(t.category);
+        const done = isDone(t, seg.key), missed = !done && isMissed(t, seg.key);
         const bar=document.createElement("div");
-        bar.className="m-bar"+(seg.contLeft?" cont-left":"")+(seg.contRight?" cont-right":"");
+        bar.className="m-bar"+(seg.contLeft?" cont-left":"")+(seg.contRight?" cont-right":"")
+                     +(done?" done":"")+(missed?" missed":"");
         bar.style.gridColumn=`${seg.startCol+1} / span ${seg.endCol-seg.startCol+1}`;
         bar.style.gridRow=String(seg.lane+2);
-        bar.style.background=cat.color+"22";
-        bar.style.color=cat.color;
-        const prefix = t.type==='todo' ? '☑ ' : (!seg.multi && t.time ? t.time+' ' : '');
+        // 완료·못함이면 카테고리 색을 빼서 회색으로(카드와 같은 규칙)
+        bar.style.background = (done||missed) ? "var(--card-soft)" : cat.color+"22";
+        bar.style.color      = (done||missed) ? "var(--muted)"     : cat.color;
+        const mark = done ? '✓ ' : missed ? '✕ ' : (t.type==='todo' ? '☐ ' : '');
+        const prefix = mark || (!seg.multi && t.time ? t.time+' ' : '');
         bar.textContent = prefix + t.title;
-        bar.title = t.title;
+        bar.title = t.title + (done ? " (완료)" : missed ? " (못함)" : "");
         week.appendChild(bar);
       });
 
