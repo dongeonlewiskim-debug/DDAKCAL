@@ -2946,13 +2946,15 @@
           for(let c=0;c<7;c++){ if(occursOn(t, ws[c])) segs.push({t, startCol:c, endCol:c, multi:false, key: ws[c]}); }
         }
       });
-      // 레인 배정: 여러날 먼저(길이 긴 순) → 단일(시간순), 겹치면 다음 레인
+      // 레인 배정: 여러날 먼저(길이 긴 순) → 단일은 아래 그날 리스트와 같은 기준으로
       segs.sort((a,b)=>{
         if(a.multi!==b.multi) return a.multi?-1:1;
         if(a.startCol!==b.startCol) return a.startCol-b.startCol;
         const la=a.endCol-a.startCol, lb=b.endCol-b.startCol;
         if(la!==lb) return lb-la;
-        return (a.t.time||"99:99").localeCompare(b.t.time||"99:99");
+        // dayTaskCompare를 그대로 씀 → 드래그로 바꾼 순서(order)가 달력 막대에도 반영됨.
+        // 예전엔 시간만 비교해서, 시간 없는 항목끼리는 배열 순서대로 놓여 아래 리스트와 어긋났음
+        return dayTaskCompare(a.t, b.t);
       });
       const laneOcc = [];
       segs.forEach(seg=>{
