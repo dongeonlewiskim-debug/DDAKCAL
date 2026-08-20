@@ -222,9 +222,20 @@
     display:flex;align-items:center;justify-content:center;transition:background .12s ease;
   }
   .theme-toggle:hover{background:var(--surface-hover);}
-  .sidebar-footer{margin-top:auto;display:flex;gap:8px;}
+  .sidebar-footer{margin-top:auto;display:flex;flex-direction:column;gap:8px;}
+  /* 내보내기/가져오기 — 자주 쓸 게 아니라 텍스트 링크처럼 조용하게 */
+  .data-btns{display:flex;flex-direction:column;gap:1px;}
+  .data-btn{
+    border:none;background:none;color:var(--muted);opacity:.6;text-align:left;
+    font-family:inherit;font-size:11.5px;font-weight:600;
+    padding:6px 8px;border-radius:8px;cursor:pointer;
+    transition:opacity .12s ease,color .12s ease,background .12s ease;
+  }
+  .data-btn:hover{opacity:1;color:var(--blue);background:var(--card-soft);}
+  .data-btn.undo{color:var(--miss);opacity:.85;}          /* 되돌릴 게 있을 때만 보임 */
+  .data-btn.undo:hover{color:var(--miss);background:var(--miss-bg);opacity:1;}
   .ghost-btn{
-    flex:1;border:none;background:var(--card-soft);color:var(--muted);
+    flex:none;border:none;background:var(--card-soft);color:var(--muted);
     padding:10px 6px;border-radius:11px;font-size:12px;cursor:pointer;font-weight:600;
   }
   .ghost-btn:hover{background:var(--blue-soft);color:var(--blue);}
@@ -670,8 +681,11 @@
     /* 모바일 사이드바는 상단 띠일 뿐 — 여백 줄이고 로그아웃은 작은 알약으로 우측 정렬 */
     .sidebar{padding:14px 20px;gap:8px;}
     .user-greeting{margin-top:0;}
-    .sidebar-footer{margin-top:0;justify-content:flex-end;}
+    .sidebar-footer{margin-top:0;align-items:flex-end;gap:4px;}
     .ghost-btn{flex:none;padding:6px 14px;font-size:12px;border-radius:9px;}
+    /* 모바일 사이드바는 상단 띠라 세로로 쌓으면 답답함 → 한 줄로 눕히고 우측 정렬 */
+    .data-btns{flex-direction:row;gap:2px;}
+    .data-btn{font-size:11px;padding:5px 8px;}
     /* 모바일: 헤더가 좁으니 검색은 날짜·추가 아래로 한 줄 내려보냄(order로 맨 뒤) */
     .main-header{gap:14px;margin-bottom:22px;}
     .find-bar{flex:1 1 100%;max-width:none;margin-left:0;order:3;}
@@ -921,6 +935,12 @@
     </div>
 
     <div class="sidebar-footer">
+      <div class="data-btns">
+        <button class="data-btn" id="exportBtn">데이터 내보내기</button>
+        <button class="data-btn" id="importBtn">데이터 가져오기</button>
+        <button class="data-btn undo" id="undoImportBtn" style="display:none;">↩ 가져오기 되돌리기</button>
+        <input type="file" id="importFile" accept="application/json,.json" style="display:none;">
+      </div>
       <button class="ghost-btn" id="signOutBtn" style="display:none;">로그아웃</button>
     </div>
   </div>
@@ -1091,17 +1111,6 @@
       <div class="count-line" id="repeatCountLine" style="display:none;">
         <input type="number" id="taskRepeatCount" min="1" max="999" value="10"> 회 반복
       </div>
-    </div>
-    <div class="field" id="remindField">
-      <label>알림</label>
-      <select id="taskRemind">
-        <option value="none">알림 없음</option>
-        <option value="0">일정 시각에</option>
-        <option value="10">10분 전</option>
-        <option value="30">30분 전</option>
-        <option value="60">1시간 전</option>
-        <option value="1440">1일 전</option>
-      </select>
     </div>
     <div class="field">
       <label>설명</label>
@@ -1292,6 +1301,7 @@
   const LS_EXPENSES = "scheduler_expenses_v1";
   const LS_EXPCATS  = "scheduler_expcats_v1";
   const LS_OWNER    = "scheduler_owner_uid";   // 이 브라우저에 남은 데이터가 누구 것인지
+  const LS_UNDO     = "scheduler_undo_import";  // 가져오기 직전 상태(되돌리기용)
   const WEEKDAYS_KO = ["일","월","화","수","목","금","토"];
   const PALETTE = ["#4f7df3","#37c48f","#ffb84f","#f26d6d","#a06cf2","#22b8cf","#ff8fb1","#7c8794"];
 
@@ -1347,9 +1357,7 @@
     return { type, days, interval, count, until: safeDate(r.until) };
   }
 
-  const REMIND_VALUES = ["none","0","10","30","60","1440"];
   function safeTime(v){ return (typeof v==="string" && TIME_RE.test(v)) ? v : ""; }
-  function safeRemind(v){ return REMIND_VALUES.includes(String(v)) ? String(v) : "none"; }
 
   function normalizeTask(t){
     t = (t && typeof t==="object") ? t : {};
@@ -1369,7 +1377,6 @@
       desc: safeStr(t.desc, 2000),
       category: safeId(t.category),
       repeat: safeRepeat(t.repeat),
-      remind: safeRemind(t.remind),
       doneDates: t.doneDates ? safeMarkArr(t.doneDates) : (t.done && date ? [date] : []),
       missDates: safeMarkArr(t.missDates),   // 못 한 날
       skipDates: safeDateArr(t.skipDates),
@@ -1519,8 +1526,10 @@
     expenseCats = DEFAULT_EXPCATS.map(normalizeCategory);
     activeCatFilter = new Set(categories.map(c=>c.id));
     seenCatIds = new Set(categories.map(c=>c.id));
-    [LS_TASKS, LS_CATS, LS_EXPENSES, LS_EXPCATS].forEach(k=>localStorage.removeItem(k));
+    // LS_UNDO도 반드시 함께 지운다 — 남겨두면 다음 사람이 '되돌리기'로 앞사람 데이터를 복원할 수 있음
+    [LS_TASKS, LS_CATS, LS_EXPENSES, LS_EXPCATS, LS_UNDO].forEach(k=>localStorage.removeItem(k));
     cloudDirty.clear();
+    refreshUndoBtn();
   }
 
   function startCloudSync(uid){
@@ -2188,7 +2197,6 @@
     document.getElementById("monthlyField").style.display = exp ? "flex" : "none";
     document.getElementById("locationField").style.display = exp ? "none" : "";
     document.getElementById("allDayField").style.display = exp ? "none" : "";
-    document.getElementById("remindField").style.display = exp ? "none" : "";
     document.getElementById("repeatField").style.display = exp ? "none" : "";
     document.querySelector(".imp-check").style.display = exp ? "none" : "";
     if(exp){
@@ -2205,7 +2213,6 @@
     const dsp = todo ? "none" : "";
     document.getElementById("locationField").style.display = dsp;
     document.getElementById("allDayField").style.display = dsp;
-    document.getElementById("remindField").style.display = dsp;
     // 날짜 범위(시작~종료)는 할일/일정 둘 다 표시 → 할일도 여러 날 가능. 할일은 '시간' 입력만 숨김
     document.getElementById("dtTilde").style.display = "";
     document.getElementById("endLine").style.display = "";
@@ -2252,7 +2259,6 @@
       document.getElementById("taskEndTime").value = t.endTime || "";
       document.getElementById("taskAllDay").checked = !!t.allDay;
       document.getElementById("taskDesc").value = t.desc || "";
-      document.getElementById("taskRemind").value = t.remind || "none";
       taskCategorySel.value = t.category;
       const rep = t.repeat || {type:"none",days:[],until:"",interval:1,count:0};
       repeatTypeSel.value = rep.type;
@@ -2274,7 +2280,6 @@
       document.getElementById("taskEndTime").value = "";
       document.getElementById("taskAllDay").checked = false;
       document.getElementById("taskDesc").value = "";
-      document.getElementById("taskRemind").value = "none";
       taskCategorySel.value = categories[0].id;
       repeatTypeSel.value = "none";
       editingRepeatDays = [selectedDate.getDay()];
@@ -2366,8 +2371,6 @@
     if(repType==="weekly" && repDays.length===0){
       repDays = [new Date(date+"T00:00:00").getDay()];
     }
-    const remind = document.getElementById("taskRemind").value;
-    if(remind !== "none") ensureNotifyPermission();
 
     // 반복 상세: 간격 + 종료(없음/날짜/횟수). 횟수는 N번째 발생일을 종료일로 환산해 저장
     let repeatObj = {type:"none", days:[], interval:1, count:0, until:""};
@@ -2396,7 +2399,6 @@
       allDay: isTodo ? true : allDay,     // 할일은 시간 없음(종일 취급)
       desc: document.getElementById("taskDesc").value.trim(),
       category: taskCategorySel.value,
-      remind: isTodo ? "none" : remind,
       repeat: repeatObj,
     };
     if(id){
@@ -2641,7 +2643,7 @@
       date:p.date, endDate:p.endDate,
       time: p.type==="todo" ? "" : p.time, endTime: p.type==="todo" ? "" : p.endTime,
       allDay: p.type==="todo" ? true : (p.allDay || !p.time),
-      desc:"", category:p.category, remind:"none", repeat:p.repeat,
+      desc:"", category:p.category, repeat:p.repeat,
     });
   }
 
@@ -3182,36 +3184,89 @@
     if(findQuery.trim()) renderFind();   // 검색 중에 뭘 고쳐도 결과가 바로 갱신되게
   }
 
-  // ---------- 알림 (브라우저 팝업) ----------
-  // 참고: 사이트가 탭에 열려 있을 때만 울립니다. (메일/앱 종료 후 알림은 별도 서버 설정 필요)
-  function ensureNotifyPermission(){
-    if(!("Notification" in window)) return;
-    if(Notification.permission === "default"){
-      Notification.requestPermission().catch(()=>{});
-    }
+  // 알림 기능은 제거됨(2026-08-20). 탭이 열려 있을 때만 울려서 사실상 못 쓰는 수준이었고,
+  // "알림이 온다"고 믿게 만드는 게 없느니만 못했음. 제대로 하려면 서버(푸시)가 필요함.
+
+  // ---------- 데이터 내보내기 / 가져오기 ----------
+  // 클라우드는 '동기화'지 '백업'이 아니다. 실수로 지운 걸 되살릴 수단이 이것뿐이라 파일로 뽑아둘 수 있게 함.
+  document.getElementById("exportBtn").addEventListener("click", ()=>{
+    const dump = { app:"DDAKCAL", version:1, exportedAt:new Date().toISOString(),
+                   tasks, categories, expenses, expenseCats };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(dump, null, 2)], {type:"application/json"}));
+    const a = document.createElement("a");
+    a.href = url; a.download = `ddakcal-${fmt(new Date())}.json`;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  });
+
+  // 가져오기는 지금 내용을 덮어쓴다. 확인창만으로는 실수를 못 막으므로(다들 그냥 누름)
+  // 덮어쓰기 직전 상태를 통째로 보관해두고 언제든 되돌릴 수 있게 한다.
+  const undoBtn = document.getElementById("undoImportBtn");
+  function refreshUndoBtn(){
+    undoBtn.style.display = localStorage.getItem(LS_UNDO) ? "block" : "none";
   }
-  const remindFired = new Set();  // "날짜|id|remind" — 같은 알림 중복 방지
-  function checkReminders(){
-    if(!("Notification" in window) || Notification.permission !== "granted") return;
-    const now = new Date();
-    [0,1].forEach(offset=>{                       // 오늘 + 내일(1일 전 알림 대응)
-      const d = new Date(now); d.setDate(d.getDate()+offset);
-      const ds = fmt(d);
-      tasksForDate(ds).forEach(t=>{
-        if(!t.remind || t.remind==="none" || t.allDay || !t.time) return;
-        const [hh,mm] = t.time.split(":").map(Number);
-        const trigger = new Date(ds+"T00:00:00");
-        trigger.setHours(hh, mm - Number(t.remind), 0, 0);
-        const key = ds+"|"+t.id+"|"+t.remind;
-        const diff = now - trigger;
-        if(diff>=0 && diff<60000 && !remindFired.has(key)){   // 예정 시각 지난 직후 1분 내
-          remindFired.add(key);
-          try{ new Notification("DDAKCAL 일정 알림", { body:`${t.time}  ${t.title}`, icon:"logo.png" }); }catch(e){}
-        }
-      });
-    });
+  function snapshotBeforeImport(){
+    try{
+      localStorage.setItem(LS_UNDO, JSON.stringify({ tasks, categories, expenses, expenseCats, at: Date.now() }));
+    }catch(e){ console.warn("되돌리기 스냅샷 실패:", e); }   // 용량 초과 등 — 가져오기 자체는 진행
+    refreshUndoBtn();
   }
-  if("Notification" in window) setInterval(checkReminders, 30000);
+  undoBtn.addEventListener("click", ()=>{
+    const raw = localStorage.getItem(LS_UNDO);
+    if(!raw) return;
+    let snap;
+    try{ snap = JSON.parse(raw); }catch(e){ localStorage.removeItem(LS_UNDO); refreshUndoBtn(); return; }
+    const when = snap.at ? new Date(snap.at).toLocaleString("ko-KR",{month:"long",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "";
+    if(!confirm(`가져오기 전 상태로 되돌립니다.\n(${when} 시점 · 일정 ${(snap.tasks||[]).length}건, 지출 ${(snap.expenses||[]).length}건)\n\n지금 내용은 사라집니다. 계속할까요?`)) return;
+    const clean = sanitizeData(snap);
+    tasks       = clean.tasks       || [];
+    categories  = clean.categories  || DEFAULT_CATS.map(normalizeCategory);
+    expenses    = clean.expenses    || [];
+    expenseCats = clean.expenseCats || DEFAULT_EXPCATS.map(normalizeCategory);
+    activeCatFilter = new Set(categories.map(c=>c.id));
+    seenCatIds = new Set(categories.map(c=>c.id));
+    localStorage.setItem(LS_EXPCATS, JSON.stringify(expenseCats));
+    cloudSaveSoon("expenseCats");
+    saveTasks(); saveCats(); saveExpenses();
+    localStorage.removeItem(LS_UNDO);
+    refreshUndoBtn();
+    renderAll();
+    alert("되돌렸어요.");
+  });
+  refreshUndoBtn();
+
+  const importFile = document.getElementById("importFile");
+  document.getElementById("importBtn").addEventListener("click", ()=> importFile.click());
+  importFile.addEventListener("change", ()=>{
+    const f = importFile.files && importFile.files[0];
+    importFile.value = "";                  // 같은 파일을 연속으로 골라도 change가 뜨도록
+    if(!f) return;
+    const reader = new FileReader();
+    reader.onerror = ()=> alert("파일을 읽지 못했어요.");
+    reader.onload = ()=>{
+      let raw;
+      try{ raw = JSON.parse(reader.result); }
+      catch(e){ alert("읽을 수 없는 파일이에요.\nDDAKCAL에서 내보낸 .json 파일인지 확인해 주세요."); return; }
+      const clean = sanitizeData(raw);       // 외부 파일이므로 반드시 정제해서 받는다
+      const nT = (clean.tasks||[]).length, nE = (clean.expenses||[]).length;
+      if(!clean.tasks && !clean.expenses){ alert("가져올 일정도 지출도 없는 파일이에요."); return; }
+      if(!confirm(`일정 ${nT}건, 지출 ${nE}건을 가져옵니다.\n\n파일에 들어 있는 항목은 지금 내용을 덮어씁니다.\n잘못 가져와도 "가져오기 되돌리기"로 복구할 수 있어요.\n\n계속할까요?`)) return;
+      snapshotBeforeImport();                 // 덮어쓰기 직전 상태 보관
+      if(clean.tasks) tasks = clean.tasks;
+      if(clean.categories) categories = clean.categories;
+      if(clean.expenses) expenses = clean.expenses;
+      if(clean.expenseCats) expenseCats = clean.expenseCats;
+      activeCatFilter = new Set(categories.map(c=>c.id));
+      seenCatIds = new Set(categories.map(c=>c.id));
+      localStorage.setItem(LS_EXPCATS, JSON.stringify(expenseCats));
+      cloudSaveSoon("expenseCats");
+      saveTasks(); saveCats(); saveExpenses();
+      refreshUndoBtn();
+      renderAll();
+      alert(`가져왔어요.\n일정 ${nT}건, 지출 ${nE}건\n\n잘못 가져왔다면 왼쪽 아래 "가져오기 되돌리기"를 누르세요.`);
+    };
+    reader.readAsText(f);
+  });
 
   // ---------- 테마 (라이트/다크 전환) ----------
   const THEME_KEY = "ddakcal_theme";
