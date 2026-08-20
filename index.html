@@ -1285,6 +1285,7 @@
   const LS_CATS = "scheduler_categories_v1";
   const LS_EXPENSES = "scheduler_expenses_v1";
   const LS_EXPCATS  = "scheduler_expcats_v1";
+  const LS_OWNER    = "scheduler_owner_uid";   // 이 브라우저에 남은 데이터가 누구 것인지
   const WEEKDAYS_KO = ["일","월","화","수","목","금","토"];
   const PALETTE = ["#4f7df3","#37c48f","#ffb84f","#f26d6d","#a06cf2","#22b8cf","#ff8fb1","#7c8794"];
 
@@ -1494,6 +1495,17 @@
     }, 500);
   }
 
+  // 이 브라우저에 남아 있는 남의 데이터를 비운다.
+  // 없으면: A 로그아웃 → B 로그인 시 B의 문서가 아직 없어서 A의 데이터가 B 계정으로 업로드됨(실제 있던 버그)
+  function clearLocalData(){
+    tasks = []; expenses = [];
+    categories  = DEFAULT_CATS.map(normalizeCategory);
+    expenseCats = DEFAULT_EXPCATS.map(normalizeCategory);
+    activeCatFilter = new Set(categories.map(c=>c.id));
+    [LS_TASKS, LS_CATS, LS_EXPENSES, LS_EXPCATS].forEach(k=>localStorage.removeItem(k));
+    cloudDirty.clear();
+  }
+
   function startCloudSync(uid){
     if(cloudUnsub) cloudUnsub();
     cloudUnsub = db.collection("users").doc(uid).onSnapshot(doc=>{
@@ -1528,6 +1540,10 @@
           greetEl.textContent = `${nm}님, 환영합니다!`;
           greetEl.style.display = "block";
         }
+        // 직전 사용자와 다르면 남은 데이터를 먼저 비운다(브라우저를 그냥 닫고 나간 경우 대비)
+        const prevOwner = localStorage.getItem(LS_OWNER);
+        if(prevOwner && prevOwner !== user.uid){ clearLocalData(); renderAll(); }
+        localStorage.setItem(LS_OWNER, user.uid);
         startCloudSync(user.uid);
       } else {
         if(cloudUnsub){ cloudUnsub(); cloudUnsub = null; }
@@ -1573,6 +1589,10 @@
     initGoogleSignIn();
     if(signOutBtn) signOutBtn.addEventListener("click", ()=>{
       try{ google.accounts.id.disableAutoSelect(); }catch(e){}
+      // 로그아웃하면 이 기기에서 내 데이터를 지운다(다음 사람이 보거나 가져가지 못하게)
+      clearLocalData();
+      localStorage.removeItem(LS_OWNER);
+      renderAll();
       firebase.auth().signOut();
     });
   }
