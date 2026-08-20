@@ -202,12 +202,6 @@
   }
   .date-block .sub{color:var(--muted);font-size:14px;margin-bottom:6px;font-weight:500;}
   .date-block h1{font-size:38px;margin:0;font-weight:800;letter-spacing:-.03em;line-height:1;}
-  .day-nav{display:flex;align-items:center;gap:8px;}
-  .day-nav button{
-    border:none;background:var(--card-soft);width:38px;height:38px;
-    border-radius:12px;cursor:pointer;color:var(--muted);font-size:16px;line-height:1;
-  }
-  .day-nav button:hover{background:var(--blue-soft);color:var(--blue);}
   .add-task-btn{
     background:var(--blue);color:#fff;border:none;padding:12px 20px;
     border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;
@@ -285,6 +279,7 @@
     margin-top:22px;flex:none;
   }
   .node.done{background:var(--blue);}
+  .node.missed{background:var(--muted);}
   .node.current{
     box-shadow:0 0 0 4px var(--blue-soft);
   }
@@ -298,6 +293,7 @@
     transition:transform .15s ease;
   }
   .task-card.done{opacity:.5;}
+  .task-card.missed{opacity:.62;}
   .task-card .top-row{display:flex;justify-content:space-between;align-items:flex-start;gap:10px;}
   .task-card .title-wrap{display:flex;align-items:flex-start;gap:12px;flex:1;min-width:0;}
   .check{
@@ -306,8 +302,11 @@
     color:#fff;font-size:12px;transition:background .12s ease,border-color .12s ease;
   }
   .check.checked{background:var(--blue);border-color:var(--blue);}
+  /* 못 함(✕) — 완료와 헷갈리지 않게 회색 + 물결 취소선 */
+  .check.missed{background:var(--muted);border-color:var(--muted);}
   .task-card h3{margin:0;font-size:16px;font-weight:800;word-break:break-word;line-height:1.35;}
   .task-card.done h3{text-decoration:line-through;color:var(--muted);}
+  .task-card.missed h3{text-decoration:line-through wavy var(--muted);color:var(--muted);}
   .time-badge{font-size:13.5px;color:var(--muted);font-weight:600;white-space:nowrap;flex:none;}
   /* 시간을 맨 왼쪽 거터에 (레일 왼쪽) — 타임라인 느낌, 색으로 구분 */
   .row-when{
@@ -649,13 +648,7 @@
         <div class="sub" id="subLabel"></div>
         <h1 id="mainTitle">Today</h1>
       </div>
-      <div style="display:flex;align-items:center;gap:14px;">
-        <div class="day-nav" id="dayNavWrap">
-          <button id="dayPrev">‹</button>
-          <button id="dayNext">›</button>
-        </div>
-        <button class="add-task-btn" id="addTaskBtn">+ 추가</button>
-      </div>
+      <button class="add-task-btn" id="addTaskBtn">+ 추가</button>
     </div>
 
     <div class="view-toggle">
@@ -863,6 +856,11 @@
   function safeDateArr(a){
     return Array.isArray(a) ? a.filter(d=>typeof d==="string" && DATE_RE.test(d)).slice(0, 2000) : [];
   }
+  // 완료/못함 표시의 키는 보통 날짜지만 "날짜 없는 할일"은 키가 "" → 빈 문자열도 살려둬야
+  // 새로고침 후에 체크가 풀리지 않음. (skipDates는 반복 일정 전용이라 항상 날짜가 있음)
+  function safeMarkArr(a){
+    return Array.isArray(a) ? a.filter(d=> d==="" || (typeof d==="string" && DATE_RE.test(d))).slice(0, 2000) : [];
+  }
   function safeRepeat(r){
     if(!r || typeof r!=="object") return {type:"none", days:[], until:""};
     const type = REPEAT_TYPES.includes(r.type) ? r.type : "none";
@@ -897,7 +895,8 @@
       category: safeId(t.category),
       repeat: safeRepeat(t.repeat),
       remind: safeRemind(t.remind),
-      doneDates: t.doneDates ? safeDateArr(t.doneDates) : (t.done && date ? [date] : []),
+      doneDates: t.doneDates ? safeMarkArr(t.doneDates) : (t.done && date ? [date] : []),
+      missDates: safeMarkArr(t.missDates),   // 못 한 날
       skipDates: safeDateArr(t.skipDates),
     };
   }
@@ -1100,10 +1099,15 @@
     return tasks.filter(t=>occursOn(t, dateStr));
   }
   function isDone(task, dateStr){ return (task.doneDates||[]).includes(dateStr); }
-  function toggleDone(task, dateStr){
+  function isMissed(task, dateStr){ return (task.missDates||[]).includes(dateStr); }
+  // 체크칸을 누를 때마다 상태가 한 칸씩 돈다: 빈칸 → 완료(✓) → 못함(✕) → 빈칸
+  function cycleStatus(task, dateStr){
     if(!task.doneDates) task.doneDates=[];
-    const idx = task.doneDates.indexOf(dateStr);
-    if(idx>=0) task.doneDates.splice(idx,1); else task.doneDates.push(dateStr);
+    if(!task.missDates) task.missDates=[];
+    const d = task.doneDates.indexOf(dateStr), m = task.missDates.indexOf(dateStr);
+    if(d>=0){ task.doneDates.splice(d,1); task.missDates.push(dateStr); }   // 완료 → 못함
+    else if(m>=0){ task.missDates.splice(m,1); }                            // 못함 → 빈칸
+    else { task.doneDates.push(dateStr); }                                  // 빈칸 → 완료
   }
   function repeatLabel(rep){
     if(!rep || rep.type==="none") return "";
@@ -1300,6 +1304,7 @@
   function taskRowHTML(t, dateStr, current){
     const cat = catById(t.category);
     const done = isDone(t, dateStr);
+    const missed = !done && isMissed(t, dateStr);
     const isRepeating = t.repeat && t.repeat.type !== "none";
     const isMulti = !!(t.endDate && t.endDate > t.date);
     let whenText, whenCls;
@@ -1318,13 +1323,13 @@
     return `
       <div class="row-when ${whenCls}">${whenText}</div>
       <div class="track">
-        <div class="node ${done?'done':''} ${current?'current':''}" style="border-color:${current?'#fff':cat.color};${done?`background:${cat.color}`:''}"></div>
+        <div class="node ${done?'done':''} ${missed?'missed':''} ${current?'current':''}" style="border-color:${current?'#fff':(missed?'var(--muted)':cat.color)};${done?`background:${cat.color}`:''}"></div>
         <div class="line"></div>
       </div>
-      <div class="task-card ${done?'done':''} ${current?'current':''}">
+      <div class="task-card ${done?'done':''} ${missed?'missed':''} ${current?'current':''}">
         <div class="top-row">
           <div class="title-wrap">
-            <div class="check ${done?'checked':''}" data-id="${t.id}" data-date="${dateStr}" style="${done?`background:${cat.color};border-color:${cat.color}`:''}">${done?'✓':''}</div>
+            <div class="check ${done?'checked':''} ${missed?'missed':''}" data-id="${t.id}" data-date="${dateStr}" title="눌러서 완료 → 못함 → 취소" style="${done?`background:${cat.color};border-color:${cat.color}`:''}">${done?'✓':(missed?'✕':'')}</div>
             <h3>${t.important ? '<span class="task-imp" title="중요">★</span>' : ''}${escapeHtml(t.title)}</h3>
           </div>
           ${ddayText ? `<span class="dday${ddayText==='D-DAY'?' today':''}">${ddayText}</span>` : ''}
@@ -1348,7 +1353,7 @@
     cont.querySelectorAll(".check").forEach(el=>{
       el.addEventListener("click", ()=>{
         const t = tasks.find(x=>x.id===el.dataset.id);
-        toggleDone(t, el.dataset.date); saveTasks(); renderAll();
+        cycleStatus(t, el.dataset.date); saveTasks(); renderAll();
       });
     });
     cont.querySelectorAll(".edit").forEach(el=>{
@@ -1391,7 +1396,7 @@
     let currentId = null;
     if(sameDay(selectedDate, new Date())){
       const nowT = new Date().toTimeString().slice(0,5);
-      const started = dayTasks.filter(t=>t.time && t.time<=nowT && !isDone(t,dateStr));
+      const started = dayTasks.filter(t=>t.time && t.time<=nowT && !isDone(t,dateStr) && !isMissed(t,dateStr));
       if(started.length) currentId = started[started.length-1].id;
     }
     dayTasks.forEach(t=>{
@@ -1409,7 +1414,11 @@
     cont.innerHTML = "";
     const items = tasks
       .filter(t=> (t.type||"event")===type && activeCatFilter.has(t.category))
-      .sort((a,b)=> a.date.localeCompare(b.date) || dayTaskCompare(a,b));
+      .sort((a,b)=>{
+        if(!a.date !== !b.date) return a.date ? 1 : -1;   // "날짜 없음"은 항상 맨 위
+        return b.date.localeCompare(a.date)               // 최신 날짜가 위로
+            || dayTaskCompare(a,b);                       // 같은 날 안에서는 원래 순서(시간·수동정렬)
+      });
     if(items.length===0){
       cont.innerHTML = `<div class="empty-state"><div class="big">${type==="todo"?"✅":"📅"}</div>${type==="todo"?"등록된 할일이 없어요.":"등록된 일정이 없어요."}</div>`;
       return;
@@ -1658,7 +1667,7 @@
       const t = tasks.find(x=>x.id===id);
       Object.assign(t, data);
     } else {
-      tasks.push(Object.assign({id:uid(), doneDates:[], skipDates:[], order:Date.now()}, data));
+      tasks.push(Object.assign({id:uid(), doneDates:[], missDates:[], skipDates:[], order:Date.now()}, data));
     }
     saveTasks();
     closeTaskModal();
@@ -1839,7 +1848,7 @@
   }
 
   function qaToTask(p){
-    return Object.assign({ id:uid(), doneDates:[], skipDates:[], order:Date.now() }, {
+    return Object.assign({ id:uid(), doneDates:[], missDates:[], skipDates:[], order:Date.now() }, {
       type:p.type, title:p.title, location:p.location, important:p.important,
       date:p.date, endDate:p.endDate,
       time: p.type==="todo" ? "" : p.time, endTime: p.type==="todo" ? "" : p.endTime,
@@ -1975,14 +1984,6 @@
     saveCats();
     catOverlay.classList.remove("show");
     renderAll();
-  });
-
-  // ---------- Day navigation ----------
-  document.getElementById("dayPrev").addEventListener("click", ()=>{
-    selectedDate.setDate(selectedDate.getDate()-1); calViewDate=new Date(selectedDate); renderAll();
-  });
-  document.getElementById("dayNext").addEventListener("click", ()=>{
-    selectedDate.setDate(selectedDate.getDate()+1); calViewDate=new Date(selectedDate); renderAll();
   });
 
   // ---------- View toggle ----------
