@@ -48,6 +48,8 @@
     --surface:#ffffff;
     --surface-hover:#eef0f4;
     --sel-tint:rgba(240,114,143,.15);   /* 선택한 날 칸에 덧칠하는 반투명 분홍 */
+    --miss:#c9767a;                     /* '못함' 표시색 — danger보다 차분하게 */
+    --miss-bg:rgba(201,118,122,.11);
   }
   /* ===== 다크 테마 (data-theme="dark") ===== */
   :root[data-theme="dark"]{
@@ -62,6 +64,8 @@
     --surface:#1f2129;
     --surface-hover:#262933;
     --sel-tint:rgba(240,114,143,.24);   /* 어두운 배경 위에선 더 진해야 보임 */
+    --miss:#c98f92;                     /* 다크에선 한 톤 더 부드럽게 */
+    --miss-bg:rgba(201,143,146,.10);
     color-scheme:dark;
   }
   /* 흰색으로 하드코딩됐던 표면들 — 다크에서만 덮어씀 */
@@ -301,11 +305,11 @@
     color:#fff;font-size:12px;transition:background .12s ease,border-color .12s ease;
   }
   .check.checked{background:var(--blue);border-color:var(--blue);}
-  /* 못 함(✕) — 완료(회색)와 확실히 구분되게 빨강 + 물결 취소선 */
-  .check.missed{background:var(--danger);border-color:var(--danger);}
+  /* 못 함(✕) — 완료(회색)와 구분되게 차분한 빨강 + 물결 취소선 */
+  .check.missed{background:var(--miss);border-color:var(--miss);}
   .task-card h3{margin:0;font-size:16px;font-weight:800;word-break:break-word;line-height:1.35;}
   .task-card.done h3{text-decoration:line-through;color:var(--muted);}
-  .task-card.missed h3{text-decoration:line-through wavy var(--danger);color:var(--muted);}
+  .task-card.missed h3{text-decoration:line-through wavy var(--miss);color:var(--muted);}
   .time-badge{font-size:13.5px;color:var(--muted);font-weight:600;white-space:nowrap;flex:none;}
   /* 시간을 맨 왼쪽 거터에 (레일 왼쪽) — 타임라인 느낌, 색으로 구분 */
   .row-when{
@@ -433,9 +437,10 @@
   }
   .m-bar.cont-left{border-top-left-radius:0;border-bottom-left-radius:0;margin-left:0;}
   .m-bar.cont-right{border-top-right-radius:0;border-bottom-right-radius:0;margin-right:0;}
-  /* 완료/못함 — 카드와 같은 규칙. 색은 위 JS에서(완료=회색, 못함=빨강) */
-  .m-bar.done{text-decoration:line-through;}
-  .m-bar.missed{text-decoration:line-through wavy;font-weight:800;}
+  /* 완료/못함 — 취소선은 제목에만(앞의 ✓/✕/☐ 표시는 안 그음) */
+  .m-bar .m-pre{margin-right:4px;}
+  .m-bar.done .m-title{text-decoration:line-through;}
+  .m-bar.missed .m-title{text-decoration:line-through wavy;}
   .m-more2{z-index:1;align-self:center;font-size:10px;color:var(--muted);font-weight:700;padding:0 5px;cursor:pointer;}
   /* 월간 뷰: 달력 아래 그날 일정 리스트 헤더 */
   .month-daylist-head{
@@ -1325,7 +1330,7 @@
     return `
       <div class="row-when ${whenCls}">${whenText}</div>
       <div class="track">
-        <div class="node ${done?'done':''} ${missed?'missed':''} ${current?'current':''}" style="border-color:${current?'#fff':(missed?'var(--danger)':cat.color)};${done?`background:${cat.color}`:(missed?'background:var(--danger)':'')}"></div>
+        <div class="node ${done?'done':''} ${missed?'missed':''} ${current?'current':''}" style="border-color:${current?'#fff':(missed?'var(--miss)':cat.color)};${done?`background:${cat.color}`:(missed?'background:var(--miss)':'')}"></div>
         <div class="line"></div>
       </div>
       <div class="task-card ${done?'done':''} ${missed?'missed':''} ${current?'current':''}">
@@ -2116,12 +2121,14 @@
                      +(done?" done":"")+(missed?" missed":"");
         bar.style.gridColumn=`${seg.startCol+1} / span ${seg.endCol-seg.startCol+1}`;
         bar.style.gridRow=String(seg.lane+2);
-        // 완료=회색으로 가라앉히고, 못함=빨강으로 눈에 띄게 (카드와 같은 규칙)
-        bar.style.background = missed ? "rgba(242,104,107,.16)" : done ? "var(--card-soft)" : cat.color+"22";
-        bar.style.color      = missed ? "var(--danger)"         : done ? "var(--muted)"     : cat.color;
-        const mark = done ? '✓ ' : missed ? '✕ ' : (t.type==='todo' ? '☐ ' : '');
-        const prefix = mark || (!seg.multi && t.time ? t.time+' ' : '');
-        bar.textContent = prefix + t.title;
+        // 완료=회색으로 가라앉히고, 못함=차분한 빨강 (카드와 같은 규칙)
+        bar.style.background = missed ? "var(--miss-bg)" : done ? "var(--card-soft)" : cat.color+"22";
+        bar.style.color      = missed ? "var(--miss)"    : done ? "var(--muted)"     : cat.color;
+        // 표시(✓/✕/☐/시간)와 제목을 나눔 — 취소선은 제목에만 긋기 위해
+        const mark = done ? '✓' : missed ? '✕' : (t.type==='todo' ? '☐' : '');
+        const pre = mark || (!seg.multi && t.time ? t.time : '');
+        bar.innerHTML = (pre ? `<span class="m-pre">${pre}</span>` : '')
+                      + `<span class="m-title">${escapeHtml(t.title)}</span>`;
         bar.title = t.title + (done ? " (완료)" : missed ? " (못함)" : "");
         week.appendChild(bar);
       });
