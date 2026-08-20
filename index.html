@@ -294,6 +294,11 @@
     font-size:13px;padding:6px;line-height:1;flex:none;
   }
   .find-count{font-size:13px;font-weight:700;color:var(--muted);margin:0 0 14px 2px;}
+  /* 클라우드 저장 실패 알림 — 조용히 실패하면 안 된 줄 모르고 계속 쓰게 됨 */
+  .sync-note{
+    flex:1 1 100%;order:4;background:rgba(201,118,122,.13);color:var(--miss);
+    font-size:12.5px;font-weight:700;border-radius:11px;padding:9px 13px;
+  }
   .qa-hint.err{color:var(--danger);}
   /* 할일/일정 리스트: 날짜 구분 헤더 + 연결선 없음 */
   .list-date-head{font-size:13px;font-weight:800;color:var(--muted);margin:20px 0 10px 2px;letter-spacing:.01em;}
@@ -928,6 +933,7 @@
         <!-- h1이 아닌 div: 페이지의 대표 제목(h1)은 로그인 화면의 서비스 소개가 맡음 -->
         <div class="main-title" id="mainTitle">Today</div>
       </div>
+      <div class="sync-note" id="syncNote" style="display:none;"></div>
       <div class="find-bar">
         <span class="find-ico">🔍</span>
         <input type="text" id="findInput" placeholder="일정 · 할일 · 지출 찾기" autocomplete="off">
@@ -1407,6 +1413,7 @@
   let expenses = (JSON.parse(localStorage.getItem(LS_EXPENSES) || "[]")).map(normalizeExpense);
   let expenseCats = (JSON.parse(localStorage.getItem(LS_EXPCATS) || "null") || DEFAULT_EXPCATS.slice()).map(normalizeCategory);
   let activeCatFilter = new Set(categories.map(c=>c.id)); // all on by default
+  let seenCatIds = new Set(categories.map(c=>c.id));      // 동기화 때 '새로 생긴 카테고리'를 가려내려고
   let selectedDate = new Date();
   let calViewDate = new Date();
   let expViewDate = new Date();   // 가계부 탭이 보고 있는 달
@@ -1477,6 +1484,13 @@
 
   // 바뀐 묶음만 올린다. 예전엔 매번 전체(일정+카테고리+지출)를 통째로 써서,
   // 체크박스 한 번 누를 때마다 데이터 전량이 업로드됐음(모바일에서 체감됨).
+  // 저장 실패를 조용히 넘기지 않는다(예전엔 console.warn만 해서, 안 된 걸 모른 채 계속 씀)
+  function syncNote(msg){
+    const el = document.getElementById("syncNote");
+    if(!el) return;
+    el.textContent = msg;
+    el.style.display = msg ? "block" : "none";
+  }
   const CLOUD_FIELDS = ["tasks","categories","expenses","expenseCats"];
   let cloudDirty = new Set();
   function cloudSaveSoon(field){
@@ -1490,7 +1504,9 @@
       cloudDirty.clear();
       // merge:true — 문서가 없으면 만들고, 있으면 준 필드만 덮어씀
       db.collection("users").doc(currentUser.uid).set(payload, {merge:true})
+        .then(()=> syncNote(""))
         .catch(err=>{ CLOUD_FIELDS.forEach(f=>cloudDirty.add(f));   // 실패하면 다음에 전부 다시
+                      syncNote("저장이 안 됐어요. 인터넷을 확인해 주세요");
                       console.warn("클라우드 저장 실패:", err); });
     }, 500);
   }
@@ -1502,6 +1518,7 @@
     categories  = DEFAULT_CATS.map(normalizeCategory);
     expenseCats = DEFAULT_EXPCATS.map(normalizeCategory);
     activeCatFilter = new Set(categories.map(c=>c.id));
+    seenCatIds = new Set(categories.map(c=>c.id));
     [LS_TASKS, LS_CATS, LS_EXPENSES, LS_EXPCATS].forEach(k=>localStorage.removeItem(k));
     cloudDirty.clear();
   }
@@ -1515,7 +1532,12 @@
       if(clean.categories) categories = clean.categories;
       if(clean.expenses) expenses = clean.expenses;
       if(clean.expenseCats) expenseCats = clean.expenseCats;
-      activeCatFilter = new Set(categories.map(c=>c.id));
+      // 사이드바에서 꺼둔 카테고리 필터를 유지한다. 예전엔 여기서 전체 켜기로 리셋해서,
+      // 카테고리 하나 꺼두고 체크 한 번만 해도(=내 저장이 되돌아옴) 필터가 풀렸음
+      const ids = new Set(categories.map(c=>c.id));
+      ids.forEach(id=>{ if(!seenCatIds.has(id)) activeCatFilter.add(id); });   // 새로 생긴 건 켜고
+      activeCatFilter = new Set([...activeCatFilter].filter(id=>ids.has(id))); // 사라진 건 정리
+      seenCatIds = ids;
       renderAll();
     }, err=>console.warn("동기화 오류:", err));
   }
