@@ -270,9 +270,27 @@
   }
   .qa-bar button:hover{background:var(--blue-deep);}
   .qa-hint{
-    font-size:12px;color:var(--muted);margin:0 0 18px 4px;min-height:16px;
+    font-size:12px;color:var(--muted);margin:0 0 14px 4px;min-height:16px;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;   /* 두 줄로 안 넘어가게 */
   }
+  /* 통합 검색 — 뭐라도 치면 아래 뷰를 결과 목록으로 갈아끼움 */
+  .find-bar{
+    display:flex;align-items:center;gap:9px;margin-bottom:20px;
+    background:var(--card-soft);border:1.5px solid transparent;border-radius:13px;padding:0 13px;
+    transition:border-color .12s ease,background .12s ease;
+  }
+  .find-bar:focus-within{border-color:var(--blue);background:var(--surface);}
+  .find-ico{font-size:13px;opacity:.5;flex:none;}
+  .find-bar input{
+    flex:1;min-width:0;border:none;background:none;outline:none;color:var(--text);
+    font-family:inherit;font-size:15px;padding:11px 0;
+  }
+  .find-bar input::placeholder{color:var(--muted);}
+  .find-bar button{
+    border:none;background:none;cursor:pointer;color:var(--muted);
+    font-size:13px;padding:6px;line-height:1;flex:none;
+  }
+  .find-count{font-size:13px;font-weight:700;color:var(--muted);margin:0 0 14px 2px;}
   .qa-hint.err{color:var(--danger);}
   /* 할일/일정 리스트: 날짜 구분 헤더 + 연결선 없음 */
   .list-date-head{font-size:13px;font-weight:800;color:var(--muted);margin:20px 0 10px 2px;letter-spacing:.01em;}
@@ -489,6 +507,7 @@
     border-radius:13px;padding:11px 14px;margin-bottom:8px;
   }
   .exp-cat{font-size:11.5px;padding:4px 10px;border-radius:20px;font-weight:700;flex:none;}
+  .exp-rep{color:var(--blue);font-weight:800;margin-right:5px;}
   .exp-title{flex:1;min-width:0;font-size:14.5px;font-weight:700;
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
   .exp-amt{font-size:15px;font-weight:800;color:var(--text);white-space:nowrap;flex:none;letter-spacing:-.01em;}
@@ -919,6 +938,16 @@
     </div>
     <div class="qa-hint" id="qaHint">줄바꿈하면 여러 개 한번에</div>
 
+    <div class="find-bar">
+      <span class="find-ico">🔍</span>
+      <input type="text" id="findInput" placeholder="일정 · 할일 · 지출 전체에서 찾기" autocomplete="off">
+      <button id="findClear" title="지우기" style="display:none;">✕</button>
+    </div>
+    <div id="findView" style="display:none;">
+      <div class="find-count" id="findCount"></div>
+      <div class="timeline flat" id="findList"></div>
+    </div>
+
     <div id="timelineView" style="display:none;">
       <div class="week-strip" id="weekStrip"></div>
       <div class="timeline" id="timeline"></div>
@@ -981,6 +1010,10 @@
         <input type="text" id="taskAmount" inputmode="numeric" placeholder="예: 8000">
         <span class="amt-won">원</span>
       </div>
+    </div>
+    <div class="field field-check" id="monthlyField" style="display:none;">
+      <input type="checkbox" id="expMonthly">
+      <label for="expMonthly">매달 이 날 반복 (월세·구독료 등)</label>
     </div>
     <div class="field">
       <label>제목</label>
@@ -1341,6 +1374,7 @@
       date: safeDate(e.date),
       category: safeId(e.category),
       desc: safeStr(e.desc, 500),
+      monthly: !!e.monthly,          // 매달 같은 날 반복(월세·구독료 등)
     };
   }
   function normalizeCategory(c){
@@ -1377,14 +1411,37 @@
     return `${y}-${m}-${day}`;
   }
   function sameDay(a,b){ return fmt(a)===fmt(b); }
-  function saveTasks(){ localStorage.setItem(LS_TASKS, JSON.stringify(tasks)); cloudSaveSoon(); }
-  function saveCats(){ localStorage.setItem(LS_CATS, JSON.stringify(categories)); cloudSaveSoon(); }
+  function saveTasks(){ localStorage.setItem(LS_TASKS, JSON.stringify(tasks)); cloudSaveSoon("tasks"); }
+  function saveCats(){ localStorage.setItem(LS_CATS, JSON.stringify(categories)); cloudSaveSoon("categories"); }
   function catById(id){ return categories.find(c=>c.id===id) || categories[0]; }
-  function saveExpenses(){ localStorage.setItem(LS_EXPENSES, JSON.stringify(expenses)); cloudSaveSoon(); }
+  function saveExpenses(){ localStorage.setItem(LS_EXPENSES, JSON.stringify(expenses)); cloudSaveSoon("expenses"); }
   function expCatById(id){ return expenseCats.find(c=>c.id===id) || expenseCats[expenseCats.length-1]; }
   function won(n){ return (n||0).toLocaleString("ko-KR"); }
-  function expensesOn(dateStr){ return dateStr ? expenses.filter(e=>e.date===dateStr) : []; }
-  function expensesInMonth(d){ const ym = fmt(d).slice(0,7); return expenses.filter(e=>e.date.startsWith(ym)); }
+  // 매달 반복 지출은 실제 데이터를 복제하지 않고, 볼 때마다 그 달 날짜로 계산해서 끼워넣는다
+  // (일정의 repeat과 같은 방식. 복제해두면 나중에 금액 고칠 때 과거까지 다 바뀌어 버림)
+  const lastDayOf = (y,m)=> new Date(y, m+1, 0).getDate();          // m: 0-based
+  function monthlyOccurrence(e, y, m){
+    const src = new Date(e.date + "T00:00:00");
+    if(new Date(y, m, lastDayOf(y,m)) < src) return null;           // 시작 전 달이면 없음
+    const day = Math.min(src.getDate(), lastDayOf(y,m));            // 31일 → 짧은 달은 말일로
+    return fmt(new Date(y, m, day));
+  }
+  function expandExpenses(y, m){    // 그 달에 실제로 잡히는 지출 목록(반복분 포함)
+    const ym = `${y}-${String(m+1).padStart(2,"0")}`;
+    const out = [];
+    for(const e of expenses){
+      if(!e.monthly){ if(e.date.startsWith(ym)) out.push(e); continue; }
+      const d = monthlyOccurrence(e, y, m);
+      if(d) out.push(d === e.date ? e : Object.assign({}, e, {date:d, _rep:true}));
+    }
+    return out;
+  }
+  function expensesOn(dateStr){
+    if(!dateStr) return [];
+    const [y,m] = dateStr.split("-").map(Number);
+    return expandExpenses(y, m-1).filter(e=>e.date===dateStr);
+  }
+  function expensesInMonth(d){ return expandExpenses(d.getFullYear(), d.getMonth()); }
   function expenseTotal(list){ return list.reduce((s,e)=>s+e.amount, 0); }
   function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
   function escapeHtml(s){
@@ -1410,13 +1467,23 @@
 
   let db = null, currentUser = null, cloudReady = false, cloudUnsub = null, cloudWriteTimer = null;
 
-  function cloudSaveSoon(){
+  // 바뀐 묶음만 올린다. 예전엔 매번 전체(일정+카테고리+지출)를 통째로 써서,
+  // 체크박스 한 번 누를 때마다 데이터 전량이 업로드됐음(모바일에서 체감됨).
+  const CLOUD_FIELDS = ["tasks","categories","expenses","expenseCats"];
+  let cloudDirty = new Set();
+  function cloudSaveSoon(field){
+    if(field) cloudDirty.add(field); else CLOUD_FIELDS.forEach(f=>cloudDirty.add(f));
     if(!cloudReady || !currentUser) return;
     clearTimeout(cloudWriteTimer);
     cloudWriteTimer = setTimeout(()=>{
-      db.collection("users").doc(currentUser.uid)
-        .set({ tasks, categories, expenses, expenseCats, updatedAt: Date.now() })
-        .catch(err=>console.warn("클라우드 저장 실패:", err));
+      const all = { tasks, categories, expenses, expenseCats };
+      const payload = { updatedAt: Date.now() };
+      cloudDirty.forEach(f=>{ payload[f] = all[f]; });
+      cloudDirty.clear();
+      // merge:true — 문서가 없으면 만들고, 있으면 준 필드만 덮어씀
+      db.collection("users").doc(currentUser.uid).set(payload, {merge:true})
+        .catch(err=>{ CLOUD_FIELDS.forEach(f=>cloudDirty.add(f));   // 실패하면 다음에 전부 다시
+                      console.warn("클라우드 저장 실패:", err); });
     }, 500);
   }
 
@@ -1844,7 +1911,7 @@
     const c = expCatById(e.category);
     return `<div class="exp-row">
       <span class="exp-cat" style="background:${c.color}22;color:${c.color}">${escapeHtml(c.name)}</span>
-      <span class="exp-title">${escapeHtml(e.title)}</span>
+      <span class="exp-title">${e.monthly ? '<span class="exp-rep" title="매달 반복">↻</span>' : ''}${escapeHtml(e.title)}</span>
       <span class="exp-amt">${won(e.amount)}원</span>
       <button class="icon-btn exp-edit" data-id="${e.id}" title="수정">✎</button>
       <button class="icon-btn exp-del" data-id="${e.id}" title="삭제">🗑</button>
@@ -2069,6 +2136,7 @@
     // 지출: 금액 + 날짜 + 카테고리만. 시간·반복·알림·장소·중요·기간 전부 숨김
     const exp = editingType === "expense";
     document.getElementById("amountField").style.display = exp ? "" : "none";
+    document.getElementById("monthlyField").style.display = exp ? "flex" : "none";
     document.getElementById("locationField").style.display = exp ? "none" : "";
     document.getElementById("allDayField").style.display = exp ? "none" : "";
     document.getElementById("remindField").style.display = exp ? "none" : "";
@@ -2190,6 +2258,7 @@
     document.getElementById("taskEndDate").value = "";
     document.getElementById("taskDesc").value = e ? e.desc : "";
     document.getElementById("taskImportant").checked = false;
+    document.getElementById("expMonthly").checked = !!(e && e.monthly);
     taskCategorySel.value = e ? expCatById(e.category).id : expenseCats[0].id;
     updateTypeFields();
     taskOverlay.classList.add("show");
@@ -2217,7 +2286,8 @@
       if(!amount){ alert("금액을 입력해주세요."); return; }
       const date = document.getElementById("taskDate").value || fmt(selectedDate);
       const data = { title, amount, date, category: taskCategorySel.value,
-                     desc: document.getElementById("taskDesc").value.trim() };
+                     desc: document.getElementById("taskDesc").value.trim(),
+                     monthly: document.getElementById("expMonthly").checked };
       const found = id && expenses.find(x=>x.id===id);
       if(found) Object.assign(found, data);
       else expenses.push(Object.assign({id: uid()}, data));
@@ -2678,10 +2748,77 @@
     renderAll();
   });
 
+  // ---------- 통합 검색 ----------
+  // 검색어가 있으면 기존 뷰를 통째로 가리고 결과 목록만 보여준다(탭을 하나 더 만들지 않기 위해)
+  const findInput = document.getElementById("findInput"),
+        findView  = document.getElementById("findView"),
+        findClear = document.getElementById("findClear");
+  let findQuery = "";
+  function findMatches(q){
+    const hay = s => (s||"").toLowerCase().includes(q);
+    const hits = [];
+    tasks.forEach(t=>{
+      if(hay(t.title) || hay(t.desc) || hay(t.location) || hay(catById(t.category).name))
+        hits.push({kind:t.type==="todo"?"todo":"event", date:t.date, t});
+    });
+    // 반복 지출은 원본 1건만 결과에 보여줌(달마다 중복으로 뜨면 못 씀)
+    expenses.forEach(e=>{
+      if(hay(e.title) || hay(e.desc) || hay(expCatById(e.category).name))
+        hits.push({kind:"expense", date:e.date, e});
+    });
+    return hits.sort((a,b)=> (b.date||"").localeCompare(a.date||""));
+  }
+  function renderFind(){
+    const q = findQuery.trim().toLowerCase();
+    findClear.style.display = findQuery ? "" : "none";
+    if(!q){ findView.style.display = "none"; switchView(currentView); return; }
+    ["timelineView","monthView","todoView","eventView","expenseView"]
+      .forEach(id=> document.getElementById(id).style.display = "none");
+    findView.style.display = "block";
+    const hits = findMatches(q);
+    document.getElementById("findCount").textContent =
+      hits.length ? `“${findQuery.trim()}” 검색 결과 ${hits.length}건` : "";
+    const cont = document.getElementById("findList");
+    if(!hits.length){
+      cont.innerHTML = `<div class="empty-state"><div class="big">🔍</div>“${escapeHtml(findQuery.trim())}”와 맞는 게 없어요.</div>`;
+      return;
+    }
+    cont.innerHTML = "";
+    let lastDate = null;
+    hits.forEach(h=>{
+      if(h.date !== lastDate){
+        lastDate = h.date;
+        const hd = document.createElement("div");
+        hd.className = "list-date-head";
+        hd.textContent = h.date
+          ? new Date(h.date+"T00:00:00").toLocaleDateString("ko-KR",{year:"numeric",month:"long",day:"numeric",weekday:"short"})
+          : "🗒 날짜 없음";
+        cont.appendChild(hd);
+      }
+      if(h.kind === "expense"){
+        const w = document.createElement("div");
+        w.innerHTML = expRowHTML(h.e);
+        cont.appendChild(w);
+      } else {
+        const row = document.createElement("div");
+        row.className = "task-row" + (h.t.time ? "" : " untimed");
+        row.dataset.id = h.t.id; row.dataset.date = h.date;
+        row.innerHTML = taskRowHTML(h.t, h.date, false);
+        cont.appendChild(row);
+      }
+    });
+    attachTaskListeners(cont);
+    attachExpenseListeners(cont);
+  }
+  findInput.addEventListener("input", ()=>{ findQuery = findInput.value; renderFind(); });
+  findInput.addEventListener("keydown", (e)=>{ if(e.key==="Escape"){ findInput.value=""; findQuery=""; renderFind(); } });
+  findClear.addEventListener("click", ()=>{ findInput.value=""; findQuery=""; renderFind(); findInput.focus(); });
+
   // ---------- View toggle ----------
   function switchView(view){
     currentView = view;
     document.querySelectorAll(".vt-btn").forEach(b=>b.classList.toggle("active", b.dataset.view===view));
+    if(findQuery.trim()) return;   // 검색 중엔 탭을 눌러도 결과 화면을 유지(탭 표시만 바꿈)
     document.getElementById("timelineView").style.display = view==="timeline" ? "block" : "none";
     document.getElementById("monthView").style.display    = view==="month"    ? "block" : "none";
     document.getElementById("todoView").style.display     = view==="todo"     ? "block" : "none";
@@ -2720,6 +2857,14 @@
     const today = new Date();
     const MAX_LANES = 3;
     const visibleTasks = tasks.filter(t=>activeCatFilter.has(t.category));
+    // 그날 지출 합계는 미리 한 번만 집계해 둔다. 칸마다 expensesOn()을 부르면
+    // 42칸 × 전체 지출을 매번 훑게 되어 건수가 늘수록 달력이 느려짐
+    const daySums = {};
+    for(let k=-1;k<=1;k++){
+      const d = new Date(year, month+k, 1);
+      expandExpenses(d.getFullYear(), d.getMonth())
+        .forEach(e=>{ daySums[e.date] = (daySums[e.date]||0) + e.amount; });
+    }
     const selectDay = (d)=>{
       selectedDate = new Date(d); calViewDate = new Date(d);
       renderMonth(); renderMonthList(); renderMiniCal(); renderHeader();
@@ -2794,7 +2939,7 @@
         cell.style.gridRow = "1 / -1";
         const num=document.createElement("div"); num.className="m-daynum"; num.textContent=d.getDate();
         cell.appendChild(num);
-        const daySum = expenseTotal(expensesOn(ws[c]));   // 그날 지출 합계는 칸 오른쪽 아래
+        const daySum = daySums[ws[c]] || 0;   // 그날 지출 합계는 칸 오른쪽 아래
         if(daySum){
           const s=document.createElement("div"); s.className="m-sum"; s.textContent=won(daySum);
           cell.appendChild(s);
@@ -2985,6 +3130,7 @@
     if(currentView==="todo") renderTypeList(todoListEl, "todo");
     if(currentView==="event") renderTypeList(eventListEl, "event");
     if(currentView==="expense") renderExpenseView();
+    if(findQuery.trim()) renderFind();   // 검색 중에 뭘 고쳐도 결과가 바로 갱신되게
   }
 
   // ---------- 알림 (브라우저 팝업) ----------
