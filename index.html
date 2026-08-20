@@ -408,7 +408,7 @@
   .m-week{display:grid;grid-template-columns:repeat(7,1fr);gap:1px;background:var(--border);}
   .m-cell{
     background:#fff;min-height:max(84px, calc((100dvh - 225px) / 6));
-    min-width:0;overflow:hidden;cursor:pointer;
+    min-width:0;overflow:hidden;cursor:pointer;position:relative;
     padding:5px 4px 0;transition:background .1s ease;
   }
   .m-cell:not(.selected):hover{background:#fafbfe;}
@@ -442,6 +442,47 @@
   .m-bar.done .m-title{text-decoration:line-through;}
   .m-bar.missed .m-title{text-decoration:line-through wavy;}
   .m-more2{z-index:1;align-self:center;font-size:10px;color:var(--muted);font-weight:700;padding:0 5px;cursor:pointer;}
+  /* ---------- 가계부 ---------- */
+  /* 달력 칸 오른쪽 아래 그날 지출 합계 */
+  .m-sum{
+    position:absolute;right:5px;bottom:3px;z-index:2;
+    font-size:10.5px;font-weight:800;color:var(--muted);letter-spacing:-.03em;pointer-events:none;
+  }
+  /* 하루/월간-그날 리스트 밑에 붙는 지출 묶음 */
+  .exp-day-head{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    margin:22px 0 10px;font-size:13px;font-weight:800;color:var(--muted);
+  }
+  .exp-day-head b{color:var(--text);font-size:15px;}
+  .exp-row{
+    display:flex;align-items:center;gap:10px;background:var(--card-soft);
+    border-radius:13px;padding:11px 14px;margin-bottom:8px;
+  }
+  .exp-cat{font-size:11.5px;padding:4px 10px;border-radius:20px;font-weight:700;flex:none;}
+  .exp-title{flex:1;min-width:0;font-size:14.5px;font-weight:700;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .exp-amt{font-size:15px;font-weight:800;color:var(--text);white-space:nowrap;flex:none;letter-spacing:-.01em;}
+  .exp-row .icon-btn{flex:none;}
+  /* 가계부 탭 */
+  .exp-total{
+    background:var(--card-soft);border-radius:var(--radius);padding:20px 22px;margin-bottom:18px;
+  }
+  .exp-total .lab{font-size:12px;font-weight:800;color:var(--muted);letter-spacing:.08em;text-transform:uppercase;}
+  .exp-total .amt{font-size:30px;font-weight:800;margin-top:6px;letter-spacing:-.02em;}
+  .exp-total .sub{font-size:12.5px;color:var(--muted);font-weight:600;margin-top:4px;}
+  .exp-cats{margin-bottom:26px;}
+  .exp-catrow{display:flex;align-items:center;gap:10px;margin-bottom:11px;}
+  .exp-catrow .nm{font-size:13px;font-weight:700;width:76px;flex:none;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .exp-catrow .bar{flex:1;height:9px;border-radius:5px;background:var(--border);overflow:hidden;min-width:0;}
+  .exp-catrow .bar i{display:block;height:100%;border-radius:5px;}
+  .exp-catrow .val{font-size:13px;font-weight:800;width:88px;text-align:right;flex:none;white-space:nowrap;}
+  .exp-catrow .pct{font-size:11.5px;color:var(--muted);font-weight:700;width:36px;text-align:right;flex:none;}
+  @media (min-width:721px){
+    .exp-catrow .nm{width:100px;font-size:14px;}
+    .exp-catrow .val{width:110px;font-size:14px;}
+    .exp-total .amt{font-size:36px;}
+  }
   /* 월간 뷰: 달력 아래 그날 일정 리스트 헤더 */
   .month-daylist-head{
     margin:26px 0 16px;font-size:17px;font-weight:800;color:var(--text);
@@ -458,6 +499,7 @@
     .month-grid{--daynum-h:26px;--lane-h:19px;}
     .m-cell{min-height:max(52px, calc((100dvh - 280px) / 6));padding:4px 2px 0;}
     .m-bar{font-size:11px;padding:0 5px;margin:0 1px;}
+    .m-sum{font-size:9px;right:3px;}
   }
 
   /* 데스크톱(넓은 화면): 화면이 넓어진 만큼 글자·막대를 보기 좋게 키움 */
@@ -467,6 +509,7 @@
     .m-daynum{font-size:17px;width:32px;height:32px;}
     .m-bar{font-size:14.5px;padding:0 10px;border-radius:6px;}
     .m-more2{font-size:13px;padding:0 9px;}
+    .m-sum{font-size:12px;right:7px;bottom:4px;}
     .vt-btn{font-size:15px;padding:12px 8px;}
     .cat-item{font-size:14.5px;}
     .cat-item .cnt{font-size:12.5px;}
@@ -524,6 +567,9 @@
   .tt-btn{flex:1;border:none;background:none;color:var(--muted);padding:10px;border-radius:9px;font-size:14px;font-weight:700;cursor:pointer;}
   .tt-btn.active{background:#fff;color:var(--blue);box-shadow:0 3px 10px rgba(27,30,40,.08);}
   :root[data-theme="dark"] .tt-btn.active{background:var(--surface);box-shadow:0 3px 10px rgba(0,0,0,.4);}
+  .amt-row{display:flex;align-items:center;gap:8px;}
+  .amt-row input{flex:1;min-width:0;text-align:right;font-weight:800;font-size:17px;letter-spacing:-.01em;}
+  .amt-won{font-size:14px;font-weight:700;color:var(--muted);flex:none;}
   .row2{display:flex;gap:10px;}
   .row2 .field{flex:1;}
   /* 일정 모달 – 제목+중요 / 일시(시작~종료) */
@@ -663,6 +709,7 @@
       <button class="vt-btn" data-view="timeline">하루</button>
       <button class="vt-btn" data-view="todo">할일</button>
       <button class="vt-btn" data-view="event">일정</button>
+      <button class="vt-btn" data-view="expense">가계부</button>
     </div>
 
     <div class="qa-bar">
@@ -700,6 +747,20 @@
       <div class="timeline flat" id="eventList"></div>
     </div>
 
+    <div id="expenseView" style="display:none;">
+      <div class="month-bar">
+        <div class="month-title" id="expTitle"></div>
+        <div class="month-nav">
+          <button id="expPrev">‹</button>
+          <button id="expThis">이번달</button>
+          <button id="expNext">›</button>
+        </div>
+      </div>
+      <div class="exp-total" id="expTotal"></div>
+      <div class="exp-cats" id="expCatSum"></div>
+      <div class="exp-list" id="expList"></div>
+    </div>
+
   </div>
 </div>
 
@@ -711,6 +772,14 @@
     <div class="type-toggle">
       <button type="button" class="tt-btn active" data-type="event">📅 일정</button>
       <button type="button" class="tt-btn" data-type="todo">✅ 할일</button>
+      <button type="button" class="tt-btn" data-type="expense">💳 지출</button>
+    </div>
+    <div class="field" id="amountField" style="display:none;">
+      <label>금액</label>
+      <div class="amt-row">
+        <input type="text" id="taskAmount" inputmode="numeric" placeholder="예: 8000">
+        <span class="amt-won">원</span>
+      </div>
     </div>
     <div class="field">
       <label>제목</label>
@@ -835,6 +904,8 @@
 
   const LS_TASKS = "scheduler_tasks_v1";
   const LS_CATS = "scheduler_categories_v1";
+  const LS_EXPENSES = "scheduler_expenses_v1";
+  const LS_EXPCATS  = "scheduler_expcats_v1";
   const WEEKDAYS_KO = ["일","월","화","수","목","금","토"];
   const PALETTE = ["#4f7df3","#37c48f","#ffb84f","#f26d6d","#a06cf2","#22b8cf","#ff8fb1","#7c8794"];
 
@@ -844,9 +915,20 @@
     {id:"meal", name:"식사", color:"#ffb84f"},
     {id:"personal", name:"개인", color:"#a06cf2"},
   ];
+  // 가계부 카테고리 — 일정 카테고리와 완전히 별개(섞이면 "식사" vs "식비"로 꼬임)
+  const DEFAULT_EXPCATS = [
+    {id:"x_food",    name:"식비",      color:"#ffb84f"},
+    {id:"x_cafe",    name:"카페/간식", color:"#c98f6a"},
+    {id:"x_transit", name:"교통",      color:"#4f7df3"},
+    {id:"x_home",    name:"주거/공과", color:"#7c8794"},
+    {id:"x_living",  name:"생활용품",  color:"#37c48f"},
+    {id:"x_culture", name:"문화/구독", color:"#a06cf2"},
+    {id:"x_style",   name:"의류/미용", color:"#ff8fb1"},
+    {id:"x_etc",     name:"기타",      color:"#22b8cf"},
+  ];
 
   // ---- 신뢰 경계 새니타이즈(가져오기/클라우드) ----
-  const MAX_TASKS = 5000, MAX_CATS = 200;
+  const MAX_TASKS = 5000, MAX_CATS = 200, MAX_EXPENSES = 20000;
   const REPEAT_TYPES = ["none","daily","weekly","monthly","yearly"];
   const DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
   const TIME_RE = /^\d{2}:\d{2}$/;
@@ -907,6 +989,21 @@
       skipDates: safeDateArr(t.skipDates),
     };
   }
+  function safeAmount(v){
+    const n = Math.round(Number(v));
+    return (Number.isFinite(n) && n>0) ? Math.min(n, 1000000000) : 0;
+  }
+  function normalizeExpense(e){
+    e = (e && typeof e==="object") ? e : {};
+    return {
+      id: safeId(e.id),
+      title: safeStr(e.title, 200),
+      amount: safeAmount(e.amount),
+      date: safeDate(e.date),
+      category: safeId(e.category),
+      desc: safeStr(e.desc, 500),
+    };
+  }
   function normalizeCategory(c){
     c = (c && typeof c==="object") ? c : {};
     return { id: safeId(c.id), name: safeStr(c.name, 60) || "카테고리", color: safeColor(c.color) };
@@ -917,14 +1014,21 @@
     if(Array.isArray(data && data.tasks)) out.tasks = data.tasks.slice(0, MAX_TASKS).map(normalizeTask);
     if(Array.isArray(data && data.categories) && data.categories.length)
       out.categories = data.categories.slice(0, MAX_CATS).map(normalizeCategory);
+    if(Array.isArray(data && data.expenses))
+      out.expenses = data.expenses.slice(0, MAX_EXPENSES).map(normalizeExpense).filter(e=>e.id && e.amount>0);
+    if(Array.isArray(data && data.expenseCats) && data.expenseCats.length)
+      out.expenseCats = data.expenseCats.slice(0, MAX_CATS).map(normalizeCategory);
     return out;
   }
 
   let tasks = (JSON.parse(localStorage.getItem(LS_TASKS) || "[]")).map(normalizeTask);
   let categories = (JSON.parse(localStorage.getItem(LS_CATS) || "null") || DEFAULT_CATS.slice()).map(normalizeCategory);
+  let expenses = (JSON.parse(localStorage.getItem(LS_EXPENSES) || "[]")).map(normalizeExpense);
+  let expenseCats = (JSON.parse(localStorage.getItem(LS_EXPCATS) || "null") || DEFAULT_EXPCATS.slice()).map(normalizeCategory);
   let activeCatFilter = new Set(categories.map(c=>c.id)); // all on by default
   let selectedDate = new Date();
   let calViewDate = new Date();
+  let expViewDate = new Date();   // 가계부 탭이 보고 있는 달
   let editingCatColor = PALETTE[0];
   let editingRepeatDays = [];
   let currentView = "month"; // 'timeline' | 'chart' | 'month'
@@ -937,6 +1041,12 @@
   function saveTasks(){ localStorage.setItem(LS_TASKS, JSON.stringify(tasks)); cloudSaveSoon(); }
   function saveCats(){ localStorage.setItem(LS_CATS, JSON.stringify(categories)); cloudSaveSoon(); }
   function catById(id){ return categories.find(c=>c.id===id) || categories[0]; }
+  function saveExpenses(){ localStorage.setItem(LS_EXPENSES, JSON.stringify(expenses)); cloudSaveSoon(); }
+  function expCatById(id){ return expenseCats.find(c=>c.id===id) || expenseCats[expenseCats.length-1]; }
+  function won(n){ return (n||0).toLocaleString("ko-KR"); }
+  function expensesOn(dateStr){ return dateStr ? expenses.filter(e=>e.date===dateStr) : []; }
+  function expensesInMonth(d){ const ym = fmt(d).slice(0,7); return expenses.filter(e=>e.date.startsWith(ym)); }
+  function expenseTotal(list){ return list.reduce((s,e)=>s+e.amount, 0); }
   function uid(){ return Date.now().toString(36)+Math.random().toString(36).slice(2,7); }
   function escapeHtml(s){
     return String(s).replace(/[&<>"']/g, m=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[m]));
@@ -966,7 +1076,7 @@
     clearTimeout(cloudWriteTimer);
     cloudWriteTimer = setTimeout(()=>{
       db.collection("users").doc(currentUser.uid)
-        .set({ tasks, categories, updatedAt: Date.now() })
+        .set({ tasks, categories, expenses, expenseCats, updatedAt: Date.now() })
         .catch(err=>console.warn("클라우드 저장 실패:", err));
     }, 500);
   }
@@ -978,6 +1088,8 @@
       const clean = sanitizeData(doc.data() || {});
       if(clean.tasks) tasks = clean.tasks;
       if(clean.categories) categories = clean.categories;
+      if(clean.expenses) expenses = clean.expenses;
+      if(clean.expenseCats) expenseCats = clean.expenseCats;
       activeCatFilter = new Set(categories.map(c=>c.id));
       renderAll();
     }, err=>console.warn("동기화 오류:", err));
@@ -1387,6 +1499,86 @@
       });
     });
   }
+  // ---------- 가계부 렌더 ----------
+  function expRowHTML(e){
+    const c = expCatById(e.category);
+    return `<div class="exp-row">
+      <span class="exp-cat" style="background:${c.color}22;color:${c.color}">${escapeHtml(c.name)}</span>
+      <span class="exp-title">${escapeHtml(e.title)}</span>
+      <span class="exp-amt">${won(e.amount)}원</span>
+      <button class="icon-btn exp-edit" data-id="${e.id}" title="수정">✎</button>
+      <button class="icon-btn exp-del" data-id="${e.id}" title="삭제">🗑</button>
+    </div>`;
+  }
+  function attachExpenseListeners(cont){
+    cont.querySelectorAll(".exp-edit").forEach(el=>
+      el.addEventListener("click", ()=> openExpenseModal(el.dataset.id)));
+    cont.querySelectorAll(".exp-del").forEach(el=>
+      el.addEventListener("click", ()=>{
+        const e = expenses.find(x=>x.id===el.dataset.id);
+        if(e && confirm(`"${e.title}" ${won(e.amount)}원을 지울까요?`)){
+          expenses = expenses.filter(x=>x.id!==el.dataset.id);
+          saveExpenses(); renderAll();
+        }
+      }));
+  }
+  // 하루/월간-그날 리스트 아래에 그날 지출을 붙임
+  function renderDayExpenses(cont, dateStr){
+    const list = expensesOn(dateStr);
+    if(!list.length) return;
+    const head = document.createElement("div");
+    head.className = "exp-day-head";
+    head.innerHTML = `<span>💳 지출 ${list.length}건</span><b>${won(expenseTotal(list))}원</b>`;
+    cont.appendChild(head);
+    const wrap = document.createElement("div");
+    wrap.innerHTML = list.map(expRowHTML).join("");
+    cont.appendChild(wrap);
+    attachExpenseListeners(wrap);
+  }
+  function renderExpenseView(){
+    const y = expViewDate.getFullYear(), m = expViewDate.getMonth();
+    document.getElementById("expTitle").textContent = `${y}년 ${m+1}월`;
+    const list = expensesInMonth(expViewDate).slice().sort((a,b)=> b.date.localeCompare(a.date));
+    const total = expenseTotal(list);
+    const days = new Set(list.map(e=>e.date)).size;
+
+    document.getElementById("expTotal").innerHTML =
+      `<div class="lab">이 달 지출</div><div class="amt">${won(total)}원</div>` +
+      `<div class="sub">${list.length}건${days ? ` · 쓴 날 ${days}일 · 하루 평균 ${won(Math.round(total/days))}원` : ""}</div>`;
+
+    // 카테고리별 합계 — 많이 쓴 순
+    const sums = expenseCats.map(c=>({c, v: expenseTotal(list.filter(e=>expCatById(e.category).id===c.id))}))
+                            .filter(x=>x.v>0).sort((a,b)=> b.v-a.v);
+    document.getElementById("expCatSum").innerHTML = sums.map(({c,v})=>`
+      <div class="exp-catrow">
+        <span class="nm" style="color:${c.color}">${escapeHtml(c.name)}</span>
+        <span class="bar"><i style="width:${total?Math.max(2,Math.round(v/total*100)):0}%;background:${c.color}"></i></span>
+        <span class="val">${won(v)}원</span>
+        <span class="pct">${total?Math.round(v/total*100):0}%</span>
+      </div>`).join("");
+
+    const cont = document.getElementById("expList");
+    if(!list.length){
+      cont.innerHTML = `<div class="empty-state"><div class="big">💳</div>이 달에 기록된 지출이 없어요.<br>빠른 추가에 <b>점심 8000</b> 처럼 쳐보세요.</div>`;
+      return;
+    }
+    let lastDate = null, html = "";
+    list.forEach(e=>{
+      if(e.date !== lastDate){
+        lastDate = e.date;
+        const dayTotal = expenseTotal(list.filter(x=>x.date===e.date));
+        html += `<div class="exp-day-head"><span>${new Date(e.date+"T00:00:00")
+                 .toLocaleDateString("ko-KR",{month:"long",day:"numeric",weekday:"short"})}</span><b>${won(dayTotal)}원</b></div>`;
+      }
+      html += expRowHTML(e);
+    });
+    cont.innerHTML = html;
+    attachExpenseListeners(cont);
+  }
+  document.getElementById("expPrev").addEventListener("click", ()=>{ expViewDate.setMonth(expViewDate.getMonth()-1); renderExpenseView(); });
+  document.getElementById("expNext").addEventListener("click", ()=>{ expViewDate.setMonth(expViewDate.getMonth()+1); renderExpenseView(); });
+  document.getElementById("expThis").addEventListener("click", ()=>{ expViewDate = new Date(); renderExpenseView(); });
+
   function renderTimeline(cont){
     cont = cont || timeline;   // 어느 영역에 그릴지 (기본: 타임라인 뷰)
     cont.innerHTML = "";
@@ -1396,7 +1588,9 @@
       .sort(dayTaskCompare);
 
     if(dayTasks.length===0){
-      cont.innerHTML = `<div class="empty-state"><div class="big">🗓️</div>이 날짜에 등록된 일정이 없어요.</div>`;
+      if(!expensesOn(dateStr).length)
+        cont.innerHTML = `<div class="empty-state"><div class="big">🗓️</div>이 날짜에 등록된 일정이 없어요.</div>`;
+      renderDayExpenses(cont, dateStr);
       return;
     }
     // "current" = 오늘 & 이미 시작했고 아직 안 끝낸 최근 일정 → 파란 강조 카드
@@ -1415,6 +1609,7 @@
     });
     attachTaskListeners(cont);
     enableReorder(cont);
+    renderDayExpenses(cont, dateStr);
   }
   // 할일/일정 전체를 날짜별로 묶어 리스트로 (달력 아님)
   function renderTypeList(cont, type){
@@ -1459,8 +1654,10 @@
   const repeatEndField = document.getElementById("repeatEndField");
   const weekdayPicker = document.getElementById("weekdayPicker");
 
+  // 지출일 땐 가계부 카테고리를 채움(일정 카테고리와 목록이 다름)
   function fillCategorySelect(){
-    taskCategorySel.innerHTML = categories.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
+    const cats = editingType==="expense" ? expenseCats : categories;
+    taskCategorySel.innerHTML = cats.map(c=>`<option value="${c.id}">${escapeHtml(c.name)}</option>`).join("");
   }
 
   function renderWeekdayPicker(){
@@ -1525,8 +1722,29 @@
   // 일정(event) / 할일(todo) 전환 — 할일은 시간·반복·알림·장소 없이 간단하게
   let editingType = "event";
   function updateTypeFields(){
-    const todo = editingType === "todo";
     document.querySelectorAll(".tt-btn").forEach(b=>b.classList.toggle("active", b.dataset.type===editingType));
+    const prevCat = taskCategorySel.value;
+    fillCategorySelect();                       // 지출↔일정은 카테고리 목록 자체가 다름 → 항상 다시 채움
+    if([...taskCategorySel.options].some(o=>o.value===prevCat)) taskCategorySel.value = prevCat;
+    // 지출: 금액 + 날짜 + 카테고리만. 시간·반복·알림·장소·중요·기간 전부 숨김
+    const exp = editingType === "expense";
+    document.getElementById("amountField").style.display = exp ? "" : "none";
+    document.getElementById("locationField").style.display = exp ? "none" : "";
+    document.getElementById("allDayField").style.display = exp ? "none" : "";
+    document.getElementById("remindField").style.display = exp ? "none" : "";
+    document.getElementById("repeatField").style.display = exp ? "none" : "";
+    document.querySelector(".imp-check").style.display = exp ? "none" : "";
+    if(exp){
+      document.getElementById("dtTilde").style.display = "none";
+      document.getElementById("endLine").style.display = "none";
+      document.getElementById("taskTime").style.display = "none";
+      document.getElementById("taskDateLabel").textContent = "날짜";
+      document.getElementById("repeatIntervalField").style.display = "none";
+      document.getElementById("repeatDaysField").style.display = "none";
+      document.getElementById("repeatEndField").style.display = "none";
+      return;
+    }
+    const todo = editingType === "todo";
     const dsp = todo ? "none" : "";
     document.getElementById("locationField").style.display = dsp;
     document.getElementById("allDayField").style.display = dsp;
@@ -1550,16 +1768,23 @@
     }
   }
   document.querySelectorAll(".tt-btn").forEach(btn=>{
-    btn.addEventListener("click", ()=>{ editingType = btn.dataset.type; updateTypeFields(); });
+    btn.addEventListener("click", ()=>{
+      // 지출↔일정은 저장되는 곳이 아예 달라서, 타입을 바꾸면 편집 대상을 놓아준다(새로 만들기로)
+      if((btn.dataset.type==="expense") !== (editingType==="expense"))
+        document.getElementById("taskId").value = "";
+      editingType = btn.dataset.type;
+      updateTypeFields();
+    });
   });
 
   function openTaskModal(id){
+    // 카테고리 목록은 editingType에 따라 달라지므로 타입부터 정한 뒤 채운다
+    editingType = id ? ((tasks.find(x=>x.id===id)||{}).type === "todo" ? "todo" : "event") : "event";
     fillCategorySelect();
     document.getElementById("modalTitle").textContent = id ? "수정" : "추가";
     document.getElementById("deleteTaskBtn").style.display = id ? "inline-block" : "none";
     if(id){
       const t = tasks.find(x=>x.id===id);
-      editingType = t.type === "todo" ? "todo" : "event";
       document.getElementById("taskId").value = t.id;
       document.getElementById("taskTitle").value = t.title;
       document.getElementById("taskImportant").checked = !!t.important;
@@ -1611,7 +1836,34 @@
   }
   function closeTaskModal(){ taskOverlay.classList.remove("show"); }
 
-  document.getElementById("addTaskBtn").addEventListener("click", ()=> openTaskModal(null));
+  // 지출 추가/수정 — 같은 모달을 재사용하되 금액·날짜·카테고리만 쓴다
+  function openExpenseModal(id){
+    const e = id ? expenses.find(x=>x.id===id) : null;
+    editingType = "expense";
+    fillCategorySelect();
+    document.getElementById("modalTitle").textContent = e ? "지출 수정" : "지출 추가";
+    document.getElementById("deleteTaskBtn").style.display = e ? "inline-block" : "none";
+    document.getElementById("taskId").value = e ? e.id : "";
+    document.getElementById("taskTitle").value = e ? e.title : "";
+    document.getElementById("taskAmount").value = e ? won(e.amount) : "";
+    document.getElementById("taskDate").value = e ? e.date : fmt(selectedDate);
+    document.getElementById("taskEndDate").value = "";
+    document.getElementById("taskDesc").value = e ? e.desc : "";
+    document.getElementById("taskImportant").checked = false;
+    taskCategorySel.value = e ? expCatById(e.category).id : expenseCats[0].id;
+    updateTypeFields();
+    taskOverlay.classList.add("show");
+    document.getElementById("taskTitle").focus();
+  }
+  // 금액칸은 치는 동안 천단위 콤마
+  document.getElementById("taskAmount").addEventListener("input", (ev)=>{
+    const digits = ev.target.value.replace(/[^\d]/g, "").slice(0, 12);
+    ev.target.value = digits ? Number(digits).toLocaleString("ko-KR") : "";
+  });
+
+  // 가계부 탭에서 누르면 바로 지출 입력으로
+  document.getElementById("addTaskBtn").addEventListener("click", ()=>
+    currentView==="expense" ? openExpenseModal(null) : openTaskModal(null));
   document.getElementById("cancelTaskBtn").addEventListener("click", closeTaskModal);
   taskOverlay.addEventListener("click", (e)=>{ if(e.target===taskOverlay) closeTaskModal(); });
 
@@ -1619,6 +1871,24 @@
     const title = document.getElementById("taskTitle").value.trim();
     if(!title){ alert("제목을 입력해주세요."); return; }
     const id = document.getElementById("taskId").value;
+
+    if(editingType === "expense"){
+      const amount = safeAmount(document.getElementById("taskAmount").value.replace(/[^\d]/g, ""));
+      if(!amount){ alert("금액을 입력해주세요."); return; }
+      const date = document.getElementById("taskDate").value || fmt(selectedDate);
+      const data = { title, amount, date, category: taskCategorySel.value,
+                     desc: document.getElementById("taskDesc").value.trim() };
+      const found = id && expenses.find(x=>x.id===id);
+      if(found) Object.assign(found, data);
+      else expenses.push(Object.assign({id: uid()}, data));
+      saveExpenses();
+      closeTaskModal();
+      selectedDate = new Date(date + "T00:00:00");
+      expViewDate = new Date(date + "T00:00:00");
+      renderAll();
+      return;
+    }
+
     const isTodo = editingType === "todo";
     const dateInput = document.getElementById("taskDate").value;
     const date = isTodo ? dateInput : (dateInput || fmt(selectedDate));  // 할일은 날짜 없이도 저장 가능
@@ -1684,6 +1954,13 @@
 
   document.getElementById("deleteTaskBtn").addEventListener("click", ()=>{
     const id = document.getElementById("taskId").value;
+    if(editingType === "expense"){
+      if(id && confirm("이 지출을 삭제할까요?")){
+        expenses = expenses.filter(x=>x.id!==id);
+        saveExpenses(); closeTaskModal(); renderAll();
+      }
+      return;
+    }
     if(id && confirm("이 일정을 삭제할까요? (반복 일정이면 전체가 삭제돼요)")){
       tasks = tasks.filter(x=>x.id!==id);
       saveTasks(); closeTaskModal(); renderAll();
@@ -1693,7 +1970,8 @@
   // ---------- 빠른 추가(자연어) ----------
   // "8월 15일 오후 3시 팀회의" 같은 문장을 규칙으로 파싱. 외부 API·네트워크 안 씀(전부 로컬).
   const QA_WD = "일월화수목금토";
-  const QA_REL = {"오늘":0,"낼":1,"내일":1,"모레":2,"내일모레":2,"글피":3};
+  const QA_REL = {"오늘":0,"낼":1,"내일":1,"모레":2,"내일모레":2,"글피":3,
+                  "어제":-1,"어저께":-1,"그제":-2,"그저께":-2,"엊그제":-2};   // 지출은 지난 날 기록이 잦음
   const QA_MER = {"새벽":0,"아침":0,"오전":0,"낮":12,"점심":12,"오후":12,"저녁":12,"밤":12};
   const QA_BARE_MER = {"아침":8,"점심":12,"저녁":18,"밤":21};
   // 제목에서 지울 말꼬리. 문장 끝에서만 지움(제목 한가운데 단어는 안 건드림)
@@ -1721,9 +1999,10 @@
     const mk = (yy,mm,dd)=> new Date(yy, mm-1, dd);
     const roll = (d)=>{ if(d < today) d.setFullYear(d.getFullYear()+1); return d; };  // 이미 지난 날짜면 내년
     let m;
-    if((m = s.match(/(내일모레|오늘|내일|모레|글피|낼)/)))              return [qaShift(today, QA_REL[m[1]]), m];
-    if((m = s.match(/(\d+)\s*(일|주일|주|달|개월)\s*(?:뒤|후|있다가)/))){
-      const n = +m[1], u = m[2];
+    if((m = s.match(/(내일모레|엊그제|그저께|어저께|오늘|내일|모레|글피|어제|그제|낼)/)))
+      return [qaShift(today, QA_REL[m[1]]), m];
+    if((m = s.match(/(\d+)\s*(일|주일|주|달|개월)\s*(?:뒤|후|있다가|전)/))){
+      const n = +m[1] * (/전\s*$/.test(m[0]) ? -1 : 1), u = m[2];
       return [qaShift(today, u==="일" ? n : (u==="주"||u==="주일") ? n*7 : n*30), m];
     }
     if((m = s.match(/(다다음|다음|담|이번|금)?\s*주\s*([일월화수목금토])(?:요일|욜)?/)))  return [qaWeekday(m[2], m[1]||""), m];
@@ -1762,6 +2041,37 @@
     return null;
   }
 
+  // 금액 뽑기 → [금액, match]. "원"이 붙거나 1000 이상인 끝자리 숫자만 금액으로 본다
+  // (그래야 "회의실 305", "2026년 회고" 같은 게 지출로 오인되지 않음)
+  function qaAmount(s){
+    let m = s.match(/(\d[\d,]*)\s*(만|천)?\s*원/);      // 8000원 / 3만원
+    if(!m) m = s.match(/(\d[\d,]*)\s*(만|천)\s*$/);      // 3만
+    if(!m) m = s.match(/(\d[\d,]*)\s*$/);                // 끝에 오는 숫자: "점심 8000"
+    if(!m) return null;
+    let v = parseInt(String(m[1]).replace(/,/g, ""), 10);
+    if(!Number.isFinite(v) || v<=0) return null;
+    if(m[2]==="만") v *= 10000; else if(m[2]==="천") v *= 1000;
+    if(!m[0].includes("원") && !m[2] && v < 1000) return null;   // 맨숫자는 1000원 이상만
+    return [v, m];
+  }
+  // 지출 카테고리 추측 (원문 기준, 제목에서 지우지 않음)
+  const QA_EXPCAT_HINT = [
+    [/카페|커피|스벅|스타벅스|디저트|간식|음료|베이글|케이크|빵/, "x_cafe"],
+    [/밥|식사|점심|저녁|아침|국밥|치킨|피자|배달|외식|회식|술|맥주|소주|편의점\s?김밥/, "x_food"],
+    [/택시|버스|지하철|기차|ktx|주유|기름|주차|톨게이트|하이패스|따릉이|교통/i, "x_transit"],
+    [/월세|전세|관리비|공과금|전기|가스|수도|인터넷|보증금|이사/, "x_home"],
+    [/생필품|휴지|세제|마트|다이소|쿠팡|생활|주방|청소/, "x_living"],
+    [/영화|넷플|유튜브|구독|게임|공연|전시|책|도서|음악|스포티파이|멤버십/, "x_culture"],
+    [/옷|의류|신발|가방|미용실|머리|화장품|네일|악세|안경/, "x_style"],
+  ];
+  function qaGuessExpCat(raw){
+    const hit = expenseCats.find(c=> c.name && raw.includes(c.name));
+    if(hit) return hit.id;
+    for(const [re, id] of QA_EXPCAT_HINT)
+      if(re.test(raw) && expenseCats.some(c=>c.id===id)) return id;
+    return (expenseCats.find(c=>c.id==="x_etc") || expenseCats[expenseCats.length-1]).id;
+  }
+
   const QA_REPEAT = [
     [/평일(?:마다|에)?/,           ()=>({type:"weekly", days:[1,2,3,4,5], interval:1})],
     [/주말(?:마다|에)?/,           ()=>({type:"weekly", days:[0,6], interval:1})],
@@ -1794,10 +2104,11 @@
     if(!raw) return null;
     let s = " " + raw + " ", m;
     const p = { type:"event", title:"", date:"", endDate:"", time:"", endTime:"", allDay:false,
-                important:false, location:"", category:"",
+                important:false, location:"", category:"", amount:0,
                 repeat:{type:"none", days:[], interval:1, count:0, until:""} };
 
     if((m = s.match(/\[?\s*할\s?일\s*\]?/))){ p.type = "todo"; s = qaCut(s, m); }
+    if((m = s.match(/\[?\s*지출\s*\]?/))){ p.type = "expense"; s = qaCut(s, m); }
     if((m = s.match(/(?:중요|긴급|!+|★|⭐)/))){ p.important = true; s = qaCut(s, m); }
     if((m = s.match(/(?:하루\s?)?종일/))){ p.allDay = true; s = qaCut(s, m); }
 
@@ -1826,7 +2137,18 @@
       if(g2 && fmt(g2[0]) > p.date){ p.endDate = fmt(g2[0]); s = qaCut(s, g2[1]); }
     }
 
-    // 시각(시작 → 종료). 할일은 시간 개념 없음
+    // 금액 → 지출로 확정. 시각 파싱보다 먼저 해야 "점심 8000"의 '점심'이 시간으로 먹히지 않음
+    if(p.type !== "todo"){
+      const money = qaAmount(s);
+      if(money){ p.type = "expense"; p.amount = money[0]; s = qaCut(s, money[1]); }
+    }
+    if(p.type === "expense"){
+      p.time = ""; p.endTime = ""; p.endDate = ""; p.allDay = false;
+      p.repeat = {type:"none", days:[], interval:1, count:0, until:""};
+      if(!p.date) p.date = fmt(selectedDate);
+    }
+
+    // 시각(시작 → 종료). 할일·지출은 시간 개념 없음
     if(p.type === "event" && !p.allDay){
       const t = qaGrabTime(s);
       if(t){
@@ -1850,7 +2172,7 @@
     p.title = s.replace(/[~\-–—]/g," ").replace(/\s*(?:에|부터|까지|쯤|경|께|으로|로)\s+/g," ")
                .replace(QA_TAIL, "").replace(/[,·]+/g," ").replace(/\s+/g," ").trim();
     if(!p.title) return null;
-    p.category = qaGuessCat(raw);
+    p.category = p.type==="expense" ? qaGuessExpCat(raw) : qaGuessCat(raw);
     return p;
   }
 
@@ -1864,8 +2186,20 @@
     });
   }
 
+  function qaToExpense(p){
+    return { id:uid(), title:p.title, amount:p.amount, date:p.date, category:p.category, desc:"" };
+  }
+
   // 한 줄이면 모달에 채워서 보여주고(확인 후 저장), 여러 줄이면 확인 한 번 받고 한꺼번에 저장
   function qaFillModal(p){
+    if(p.type === "expense"){
+      openExpenseModal(null);
+      document.getElementById("taskTitle").value = p.title;
+      document.getElementById("taskAmount").value = won(p.amount);
+      document.getElementById("taskDate").value = p.date;
+      taskCategorySel.value = p.category;
+      return;
+    }
     openTaskModal(null);
     editingType = p.type;
     document.getElementById("taskTitle").value = p.title;
@@ -1891,6 +2225,7 @@
   function qaSay(msg, isErr){ qaHint.textContent = msg || QA_IDLE; qaHint.classList.toggle("err", !!isErr); }
   function qaPreview(p){
     const d = p.date ? p.date.slice(5).replace("-",".") : "날짜없음";
+    if(p.type === "expense") return `${d} 💳 ${p.title} ${won(p.amount)}원`;
     return `${d}${p.endDate ? "~"+p.endDate.slice(5).replace("-",".") : ""} ${p.time||""} ${p.title}`.replace(/\s+/g," ").trim();
   }
   function qaRun(){
@@ -1905,8 +2240,9 @@
       return;
     }
     if(!confirm(ok.map(qaPreview).join("\n") + "\n\n총 " + ok.length + "개를 추가할까요?")) return;
-    ok.forEach(p=> tasks.push(qaToTask(p)));
-    saveTasks();
+    ok.forEach(p=> p.type==="expense" ? expenses.push(qaToExpense(p)) : tasks.push(qaToTask(p)));
+    if(ok.some(p=>p.type!=="expense")) saveTasks();
+    if(ok.some(p=>p.type==="expense")) saveExpenses();
     qaInput.value = bad.join("\n"); qaGrow();     // 못 읽은 줄은 고쳐 쓰라고 입력칸에 남겨둠
     qaSay(ok.length + "개 추가됨" + (bad.length ? " · " + bad.length + "줄은 못 읽어서 남겨뒀어요" : ""), !!bad.length);
     const first = ok.find(p=>p.date);
@@ -1946,6 +2282,15 @@
       ["다음주 월요일 병원",               p=> p.title==="병원" && new Date(p.date+"T00:00:00").getDay()===1],
       ["월요일 아침 회사에서 발표 준비",    p=> p.time==="08:00" && p.location==="회사" && p.title==="발표 준비"],
       ["12월 31일부터 1월 2일까지 여행",    p=> p.endDate > p.date && p.title==="여행"],
+      ["점심 8000",                        p=> p.type==="expense" && p.amount===8000 && p.title==="점심"],
+      ["커피 4,500",                       p=> p.type==="expense" && p.amount===4500 && p.title==="커피"],
+      ["어제 택시 12000",                  p=> p.type==="expense" && p.amount===12000 && p.date===iso(qaShift(T,-1))],
+      ["주차 500원",                       p=> p.type==="expense" && p.amount===500 && p.title==="주차"],
+      ["월세 50만원",                      p=> p.type==="expense" && p.amount===500000],
+      ["할일 우유 500 사기",               p=> p.type==="todo"],          // 할일 명시하면 금액으로 안 봄
+      ["2026년 회고",                       p=> p.type!=="expense"],       // 연도를 금액으로 오인 금지
+      ["회의실 305",                        p=> p.type!=="expense"],       // 3자리 맨숫자는 금액 아님
+      ["8월 15일 오후 3시 팀회의",          p=> p.type==="event"],         // 날짜/시간 숫자를 금액으로 오인 금지
       ["ㅁㄴㅇㄹ",                          p=> p && p.title==="ㅁㄴㅇㄹ"],
     ];
     let fail = 0;
@@ -2001,10 +2346,12 @@
     document.getElementById("monthView").style.display    = view==="month"    ? "block" : "none";
     document.getElementById("todoView").style.display     = view==="todo"     ? "block" : "none";
     document.getElementById("eventView").style.display    = view==="event"    ? "block" : "none";
+    document.getElementById("expenseView").style.display  = view==="expense"  ? "block" : "none";
     if(view==="month"){ renderMonth(); renderMonthList(); }
     if(view==="timeline") renderTimeline();
     if(view==="todo") renderTypeList(todoListEl, "todo");
     if(view==="event") renderTypeList(eventListEl, "event");
+    if(view==="expense") renderExpenseView();
   }
   document.querySelectorAll(".vt-btn").forEach(btn=>{
     btn.addEventListener("click", ()=> switchView(btn.dataset.view));
@@ -2107,6 +2454,11 @@
         cell.style.gridRow = "1 / -1";
         const num=document.createElement("div"); num.className="m-daynum"; num.textContent=d.getDate();
         cell.appendChild(num);
+        const daySum = expenseTotal(expensesOn(ws[c]));   // 그날 지출 합계는 칸 오른쪽 아래
+        if(daySum){
+          const s=document.createElement("div"); s.className="m-sum"; s.textContent=won(daySum);
+          cell.appendChild(s);
+        }
         cell.addEventListener("click", ()=>selectDay(d));
         week.appendChild(cell);
       });
@@ -2292,6 +2644,7 @@
     if(currentView==="month"){ renderMonth(); renderMonthList(); }
     if(currentView==="todo") renderTypeList(todoListEl, "todo");
     if(currentView==="event") renderTypeList(eventListEl, "event");
+    if(currentView==="expense") renderExpenseView();
   }
 
   // ---------- 알림 (브라우저 팝업) ----------
