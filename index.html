@@ -2696,7 +2696,16 @@
   document.getElementById("addTaskBtn").addEventListener("click", ()=>
     currentView==="expense" ? openExpenseModal(null) : openTaskModal(null));
   document.getElementById("cancelTaskBtn").addEventListener("click", closeTaskModal);
-  taskOverlay.addEventListener("click", (e)=>{ if(e.target===taskOverlay) closeTaskModal(); });
+  // 바깥을 눌러 닫기 — 단, **누른 곳과 뗀 곳이 둘 다** 바깥이어야 한다.
+  // click은 누른 곳과 뗀 곳의 공통 조상에서 나므로, 입력칸에서 글자를 드래그하다가
+  // 팝업 밖에서 손을 떼면 target이 오버레이가 돼서 적던 내용이 통째로 날아갔다.
+  function closeOnBackdrop(overlay, close){
+    let down = false, up = false;
+    overlay.addEventListener("mousedown", e=>{ down = (e.target === overlay); });
+    overlay.addEventListener("mouseup",   e=>{ up   = (e.target === overlay); });
+    overlay.addEventListener("click",     ()=>{ if(down && up) close(); });
+  }
+  closeOnBackdrop(taskOverlay, closeTaskModal);
 
   document.getElementById("saveTaskBtn").addEventListener("click", ()=>{
     const title = document.getElementById("taskTitle").value.trim();
@@ -3208,7 +3217,7 @@
     document.getElementById("catName").focus();
   });
   document.getElementById("cancelCatBtn").addEventListener("click", ()=> catOverlay.classList.remove("show"));
-  catOverlay.addEventListener("click", (e)=>{ if(e.target===catOverlay) catOverlay.classList.remove("show"); });
+  closeOnBackdrop(catOverlay, ()=> catOverlay.classList.remove("show"));
 
   document.getElementById("saveCatBtn").addEventListener("click", ()=>{
     const name = document.getElementById("catName").value.trim();
