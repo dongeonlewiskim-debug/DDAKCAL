@@ -2830,16 +2830,20 @@
     let m;
     if((m = s.match(/(내일모레|엊그제|그저께|어저께|오늘|내일|모레|글피|어제|그제|낼)/)))
       return [qaShift(today, QA_REL[m[1]]), m];
-    if((m = s.match(/(\d+)\s*(일|주일|주|달|개월)\s*(?:뒤|후|있다가|전)/))){
+    // ⚠️ "N월 N일"을 상대날짜(N일 뒤/전)보다 **먼저** 본다.
+    //    안 그러면 "11월 21일 전종훈 결혼"에서 "21일 전"이 먼저 걸려 8월 3일이 된다.
+    if((m = s.match(/(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일?/))){
+      const d = mk(m[1] ? +m[1] : y, +m[2], +m[3]);
+      return [m[1] ? d : roll(d), m];
+    }
+    // 뒤/후/전 다음에 한글이 더 붙으면 방향이 아니라 낱말이다:
+    // "전종훈"(이름) · "5일 전화하기" · "3일 후반전" · "뒤풀이"
+    if((m = s.match(/(\d+)\s*(일|주일|주|달|개월)\s*(?:뒤|후|있다가|전)(?![가-힣])/))){
       const n = +m[1] * (/전\s*$/.test(m[0]) ? -1 : 1), u = m[2];
       return [qaShift(today, u==="일" ? n : (u==="주"||u==="주일") ? n*7 : n*30), m];
     }
     if((m = s.match(/(다다음|다음|담|이번|금)?\s*주\s*([일월화수목금토])(?:요일|욜)?/)))  return [qaWeekday(m[2], m[1]||""), m];
     if((m = s.match(/(다다음|다음|담|이번)?\s*([일월화수목금토])(?:요일|욜)/)))          return [qaWeekday(m[2], m[1]||""), m];
-    if((m = s.match(/(?:(\d{4})\s*년\s*)?(\d{1,2})\s*월\s*(\d{1,2})\s*일?/))){
-      const d = mk(m[1] ? +m[1] : y, +m[2], +m[3]);
-      return [m[1] ? d : roll(d), m];
-    }
     if((m = s.match(/(\d{1,2})\s*[\/.]\s*(\d{1,2})(?![\/.\d])/)))       return [roll(mk(y, +m[1], +m[2])), m];
     if((m = s.match(/(다음|담)\s*달/))){ const d=new Date(today); d.setMonth(d.getMonth()+1); return [d, m]; }
     if((m = s.match(/(\d{1,2})\s*일(?!\s*(?:마다|뒤|후|간|째|치))/))){
@@ -3143,6 +3147,11 @@
       ["중요 12월 25일 크리스마스",        p=> p.important && p.date.endsWith("-12-25")],
       ["매달 15일 월세 이체",              p=> p.repeat.type==="monthly" && p.date.endsWith("-15")],
       ["다음주 월요일 병원",               p=> p.title==="병원" && new Date(p.date+"T00:00:00").getDay()===1],
+      // "21일 전"으로 읽혀 엉뚱한 날이 되던 버그. 성이 전/후 씨인 사람 이름이 다 걸렸다.
+      ["11월 21일 전종훈 결혼",            p=> p.date.endsWith("-11-21") && p.title==="전종훈 결혼"],
+      ["3일 뒤 회의",                      p=> p.date===iso(qaShift(T,3)) && p.title==="회의"],
+      ["3일 전 메모",                      p=> p.date===iso(qaShift(T,-3)) && p.title==="메모"],
+      ["2주 후 시험",                      p=> p.date===iso(qaShift(T,14)) && p.title==="시험"],
       ["월요일 아침 회사에서 발표 준비",    p=> p.time==="08:00" && p.location==="회사" && p.title==="발표 준비"],
       ["12월 31일부터 1월 2일까지 여행",    p=> p.endDate > p.date && p.title==="여행"],
       ["점심 8000",                        p=> p.type==="expense" && p.amount===8000 && p.title==="점심"],
