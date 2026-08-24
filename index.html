@@ -1457,6 +1457,16 @@
   let selectedDate = new Date();
   let calViewDate = new Date();
   let expViewDate = new Date();   // 가계부 탭이 보고 있는 달
+
+  // 선택 날짜를 옮길 땐 달력이 보고 있는 달도 반드시 같이 옮긴다.
+  // 따로 놀면 "11월 21일 결혼" 을 추가해도 달력은 8월에 멈춰 있어서
+  // 화면에 아무것도 안 나타나고, 사용자에겐 날짜가 안 먹힌 걸로 보인다.
+  function goToDate(d){
+    const dt = (d instanceof Date) ? new Date(d) : new Date(d);
+    if(isNaN(dt)) return;
+    selectedDate = dt;
+    calViewDate = new Date(dt);
+  }
   let editingCatColor = PALETTE[0];
   let editingRepeatDays = [];
   let currentView = "month"; // 'timeline' | 'chart' | 'month'
@@ -2103,7 +2113,7 @@
       if(sameDay(d,selectedDate)) el.classList.add("selected");
       if(tasksForDate(fmt(d)).length>0) el.classList.add("has-task");
       el.textContent = d.getDate();
-      el.addEventListener("click", ()=>{ selectedDate = d; calViewDate=new Date(d); renderAll(); });
+      el.addEventListener("click", ()=>{ goToDate(d); renderAll(); });
       calGrid.appendChild(el);
     }
   }
@@ -2166,7 +2176,7 @@
       el.className = "week-day" + (sameDay(d,selectedDate)?" selected":"");
       const hasTask = tasksForDate(fmt(d)).length>0;
       el.innerHTML = `<div class="wd">${WEEKDAYS_KO[d.getDay()]}</div><div class="dnum">${d.getDate()}</div>${hasTask?'<div class="dot"></div>':''}`;
-      el.addEventListener("click", ()=>{ selectedDate = d; calViewDate=new Date(d); renderAll(); });
+      el.addEventListener("click", ()=>{ goToDate(d); renderAll(); });
       weekStrip.appendChild(el);
     }
   }
@@ -2705,7 +2715,7 @@
       else expenses.push(Object.assign({id: uid()}, data));
       saveExpenses();
       closeTaskModal();
-      selectedDate = new Date(date + "T00:00:00");
+      goToDate(date + "T00:00:00");
       expViewDate = new Date(date + "T00:00:00");
       renderAll();
       return;
@@ -2767,7 +2777,7 @@
     }
     saveTasks();
     closeTaskModal();
-    if(data.date) selectedDate = new Date(data.date + "T00:00:00");
+    if(data.date) goToDate(data.date + "T00:00:00");
     renderAll();
   });
 
@@ -3099,7 +3109,7 @@
     qaInput.value = bad.join("\n"); qaGrow();     // 못 읽은 줄은 고쳐 쓰라고 입력칸에 남겨둠
     qaSay(ok.length + "개 추가됨" + (bad.length ? " · " + bad.length + "줄은 못 읽어서 남겨뒀어요" : ""), !!bad.length);
     const first = ok.find(p=>p.date);
-    if(first) selectedDate = new Date(first.date + "T00:00:00");
+    if(first) goToDate(first.date + "T00:00:00");
     renderAll();
   }
   document.getElementById("qaBtn").addEventListener("click", qaRun);
@@ -3320,7 +3330,7 @@
         .forEach(e=>{ daySums[e.date] = (daySums[e.date]||0) + e.amount; });
     }
     const selectDay = (d)=>{
-      selectedDate = new Date(d); calViewDate = new Date(d);
+      goToDate(d);
       renderMonth(); renderMonthList(); renderMiniCal(); renderHeader();
       // 달력이 화면을 꽉 채우므로, 그 날 타임라인이 보이도록 아래로 스크롤
       const head = document.getElementById("monthDayHead");
