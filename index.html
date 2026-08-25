@@ -316,6 +316,19 @@
   .list-date-head:first-child{margin-top:2px;}
   .timeline.flat .line{display:none;}
 
+  /* 곧 할 것 박스 — 먼 미래 일정에 밀려 오늘 할 일이 안 보이던 문제 때문에 위에 고정 */
+  .upnext{display:none;margin:0 0 18px;padding:14px 14px 6px;border-radius:16px;
+          background:var(--card-soft);border:1px solid var(--border);}
+  .upnext.on{display:block;}
+  .upnext-head{display:flex;align-items:baseline;gap:8px;margin:0 0 10px 2px;}
+  .upnext-head b{font-size:13.5px;font-weight:800;letter-spacing:.01em;}
+  .upnext-head span{font-size:12px;color:var(--muted);font-weight:600;}
+  .upnext .list-date-head{margin:14px 0 8px 2px;font-size:12.5px;}
+  .upnext .list-date-head:first-of-type{margin-top:0;}
+  .upnext .list-date-head.today{color:var(--blue);}
+  .upnext .list-date-head.late{color:var(--miss);}
+  .upnext-empty{font-size:13px;color:var(--muted);padding:2px 2px 10px;}
+
   /* week strip — clean text columns (no boxes), reference style */
   .week-strip{
     display:flex;gap:4px;margin-bottom:30px;
@@ -1004,9 +1017,11 @@
     </div>
 
     <div id="todoView" style="display:none;">
+      <div class="upnext" id="todoUpNext"></div>
       <div class="timeline flat" id="todoList"></div>
     </div>
     <div id="eventView" style="display:none;">
+      <div class="upnext" id="eventUpNext"></div>
       <div class="timeline flat" id="eventList"></div>
     </div>
 
@@ -2192,6 +2207,8 @@
   const timeline = document.getElementById("timeline");
   const todoListEl = document.getElementById("todoList");
   const eventListEl = document.getElementById("eventList");
+  const todoUpNextEl = document.getElementById("todoUpNext");
+  const eventUpNextEl = document.getElementById("eventUpNext");
 
   // 정렬: 시간 있으면 시간순(먼저), 없으면(할일·종일·미정) 사용자가 정한 order순
   function dayTaskCompare(a,b){
@@ -2444,6 +2461,61 @@
     enableReorder(cont);
     renderDayExpenses(cont, dateStr);
   }
+  // ── 곧 할 것 (리스트 맨 위 고정 박스) ───────────────────────────────
+  // 전체 리스트는 "먼 미래가 위"로 정렬돼 있어서, 5·6월 일정을 미리 적어두면
+  // 정작 오늘 할 일이 맨 밑으로 밀린다. 그래서 오늘~7일치를 따로 위에 뽑아 보여준다.
+  const UPNEXT_DAYS = 7;
+  function renderUpNext(cont, type){
+    const today = new Date(), todayStr = fmt(today);
+    const groups = [];      // [{dateStr, label, cls, items[]}]
+
+    // 지난 미완료 할일 — 놓친 건 앞으로의 일정보다 더 급하다. 일정은 지나면 끝이라 제외.
+    if(type === "todo"){
+      const late = tasks.filter(t=> (t.type||"event")==="todo" && t.date && t.date < todayStr
+                                 && (t.repeat||{}).type === "none"      // 반복은 지난 회차가 끝없이 쌓여서 뺀다
+                                 && activeCatFilter.has(t.category)
+                                 && !isDone(t, t.date) && !isMissed(t, t.date))
+                        .sort((a,b)=> a.date.localeCompare(b.date));
+      if(late.length) groups.push({label:`밀린 할일 ${late.length}건`, cls:"late", items:late.map(t=>[t, t.date])});
+    }
+
+    for(let i=0; i<UPNEXT_DAYS; i++){
+      const d = new Date(today); d.setDate(d.getDate()+i);
+      const ds = fmt(d);
+      const items = tasksForDate(ds)
+        .filter(t=> (t.type||"event")===type && activeCatFilter.has(t.category)
+                 && !isDone(t, ds) && !isMissed(t, ds))     // 처리한 건 굳이 위에 안 띄운다
+        .sort(dayTaskCompare);
+      if(!items.length) continue;
+      groups.push({
+        label: i===0 ? "오늘" : i===1 ? "내일"
+             : d.toLocaleDateString("ko-KR",{month:"long",day:"numeric",weekday:"short"}),
+        cls: i===0 ? "today" : "",
+        items: items.map(t=>[t, ds]),
+      });
+    }
+
+    if(!groups.length){ cont.className = "upnext"; cont.innerHTML = ""; return; }
+
+    cont.className = "upnext on";
+    cont.innerHTML = `<div class="upnext-head"><b>${type==="todo"?"곧 할 일":"곧 있을 일정"}</b>
+                      <span>오늘부터 ${UPNEXT_DAYS}일</span></div>`;
+    groups.forEach(g=>{
+      const hd = document.createElement("div");
+      hd.className = "list-date-head " + g.cls;
+      hd.textContent = g.label;
+      cont.appendChild(hd);
+      g.items.forEach(([t, ds])=>{
+        const row = document.createElement("div");
+        row.className = "task-row" + (t.time ? "" : " untimed");
+        row.dataset.id = t.id; row.dataset.date = ds;
+        row.innerHTML = taskRowHTML(t, ds, false);
+        cont.appendChild(row);
+      });
+    });
+    attachTaskListeners(cont);      // 수동 정렬(enableReorder)은 안 붙인다 — 여기 순서는 날짜가 정한다
+  }
+
   // 할일/일정 전체를 날짜별로 묶어 리스트로 (달력 아님)
   function renderTypeList(cont, type){
     cont.innerHTML = "";
@@ -2863,6 +2935,8 @@
     return null;
   }
 
+  const QA_KO_HOUR = {한:1,두:2,세:3,네:4,다섯:5,여섯:6,일곱:7,여덟:8,아홉:9,열:10,열한:11,열두:12};
+
   // 시각 하나 뽑기 → ["HH:MM", match] / 말꼬리만 있는 아침·점심·저녁은 제목 보존 위해 안 지움
   function qaGrabTime(s){
     const fin = (h, mi, mer)=>{
@@ -2871,9 +2945,21 @@
       if(h>23) h-=12;
       return String(h).padStart(2,"0")+":"+String(mi).padStart(2,"0");
     };
+    // 분 부분: "반"=30 · "30분" · "삼십분"(한자어 수사는 qaKoGroup이 이미 읽는다)
+    const mins = (half, num, ko)=>{
+      const v = half ? 30 : num ? +num : (ko ? qaKoGroup(ko) : 0);
+      return (Number.isFinite(v) && v >= 0 && v <= 59) ? v : 0;   // "구십분" 같은 건 무시
+    };
+    const MIN = "(?:(반)|(\\d{1,2})\\s*분|([일이삼사오육륙칠팔구십]{1,4})\\s*분)?";
+    const MER = "(?:(새벽|아침|오전|낮|점심|오후|저녁|밤)\\s*)?";
     let m;
-    if((m = s.match(/(?:(새벽|아침|오전|낮|점심|오후|저녁|밤)\s*)?(\d{1,2})\s*시\s*(?:(반)|(\d{1,2})\s*분)?/)))
-      return [fin(+m[2], m[3] ? 30 : (m[4] ? +m[4] : 0), m[1]), m];
+    // "시" 뒤에 "간"이 오면 시각이 아니라 길이다: "1시간 운동", "한시간 뒤"
+    if((m = s.match(new RegExp(MER + "(\\d{1,2})\\s*시(?!간)\\s*" + MIN))))
+      return [fin(+m[2], mins(m[3], m[4], m[5]), m[1]), m];
+    // 한글 시각 — "여섯시반", "세시", "열두시 십오분". 시는 고유어로 읽는다(한/두/세/네/다섯…)
+    // ⚠️ 긴 것부터 나열해야 한다. "열"이 먼저면 "열두시"가 10시로 읽힌다.
+    if((m = s.match(new RegExp(MER + "(열두|열한|다섯|여섯|일곱|여덟|아홉|열|한|두|세|네)\\s*시(?!간)\\s*" + MIN))))
+      return [fin(QA_KO_HOUR[m[2]], mins(m[3], m[4], m[5]), m[1]), m];
     if((m = s.match(/(?:(새벽|아침|오전|낮|점심|오후|저녁|밤)\s*)?([01]?\d|2[0-3]):([0-5]\d)/)))
       return [fin(+m[2], +m[3], m[1]), m];
     if((m = s.match(/(?:^|\s)(아침|점심|저녁|밤)(?=\s|$)/)))             // 홀로 떨어진 낱말이면 제목에서 뺌
@@ -3006,8 +3092,10 @@
     }
 
     // 날짜(시작 → 종료)
+    let found = false;                 // 날짜·시각·금액 중 하나라도 알아들었는가
     let g = qaGrabDate(s, 0);
     if(g){
+      found = true;
       p.date = fmt(g[0]); s = qaCut(s, g[1]);
       const g2 = qaGrabDate(s, g[0].getMonth()+1);
       if(g2 && fmt(g2[0]) > p.date){ p.endDate = fmt(g2[0]); s = qaCut(s, g2[1]); }
@@ -3016,7 +3104,7 @@
     // 금액 → 지출로 확정. 시각 파싱보다 먼저 해야 "점심 8000"의 '점심'이 시간으로 먹히지 않음
     if(p.type !== "todo"){
       const money = qaAmount(s);
-      if(money){ p.type = "expense"; p.amount = money[0]; s = qaCut(s, money[1]); }
+      if(money){ found = true; p.type = "expense"; p.amount = money[0]; s = qaCut(s, money[1]); }
     }
     if(p.type === "expense"){
       p.time = ""; p.endTime = ""; p.endDate = ""; p.allDay = false;
@@ -3028,6 +3116,7 @@
     if(p.type === "event" && !p.allDay){
       const t = qaGrabTime(s);
       if(t){
+        found = true;
         p.time = t[0];
         if(t[1]) s = qaCut(s, t[1]);
         const t2 = t[1] ? qaGrabTime(s) : null;
@@ -3047,7 +3136,9 @@
 
     p.title = s.replace(/[~\-–—]/g," ").replace(/\s*(?:에|부터|까지|쯤|경|께|으로|로)\s+/g," ")
                .replace(QA_TAIL, "").replace(/[,·]+/g," ").replace(/\s+/g," ").trim();
-    if(!p.title) return null;
+    // "오늘 오후 6시 30분"처럼 제목만 없는 건 못 알아들은 게 아니다.
+    // 모달을 열어 제목만 받으면 되므로 통과시킨다(저장 단계에서 빈 제목은 어차피 막힌다).
+    if(!p.title && !found) return null;
     p.category = p.type==="expense" ? qaGuessExpCat(raw) : qaGuessCat(raw);
     return p;
   }
@@ -3101,14 +3192,20 @@
   function qaSay(msg, isErr){ qaHint.textContent = msg || QA_IDLE; qaHint.classList.toggle("err", !!isErr); }
   function qaPreview(p){
     const d = p.date ? p.date.slice(5).replace("-",".") : "날짜없음";
-    if(p.type === "expense") return `${d} 💳 ${p.title} ${won(p.amount)}원`;
-    return `${d}${p.endDate ? "~"+p.endDate.slice(5).replace("-",".") : ""} ${p.time||""} ${p.title}`.replace(/\s+/g," ").trim();
+    const t = p.title || "무슨 일인지 적어주세요";
+    if(p.type === "expense") return `${d} 💳 ${t} ${won(p.amount)}원`;
+    return `${d}${p.endDate ? "~"+p.endDate.slice(5).replace("-",".") : ""} ${p.time||""} ${t}`.replace(/\s+/g," ").trim();
   }
   function qaRun(){
     const lines = qaInput.value.split("\n").map(x=>x.trim()).filter(Boolean);
     if(!lines.length) return;
-    const parsed = lines.map(qaParse), bad = lines.filter((_,i)=>!parsed[i]);
-    const ok = parsed.filter(Boolean);
+    const parsed = lines.map(qaParse);
+    // 한 줄이면 모달이 열리니 제목은 거기서 채우면 된다. 여러 줄을 한꺼번에 넣을 땐
+    // 모달이 안 열리므로 제목 없는 줄은 '못 읽음'으로 돌려보낸다(빈 제목 항목이 생기면 안 됨).
+    const single = lines.length === 1;
+    const good = i => !!parsed[i] && (single || !!parsed[i].title);
+    const ok  = parsed.filter((_,i)=> good(i));
+    const bad = lines.filter((_,i)=> !good(i));
     if(!ok.length){ qaSay("못 알아들었어요. 예) 8월 15일 오후 3시 팀회의", true); return; }
     if(ok.length === 1 && !bad.length){
       qaInput.value = ""; qaGrow(); qaSay("");
@@ -3159,6 +3256,19 @@
       // "21일 전"으로 읽혀 엉뚱한 날이 되던 버그. 성이 전/후 씨인 사람 이름이 다 걸렸다.
       ["11월 21일 전종훈 결혼",            p=> p.date.endsWith("-11-21") && p.title==="전종훈 결혼"],
       ["3일 뒤 회의",                      p=> p.date===iso(qaShift(T,3)) && p.title==="회의"],
+      // 시각을 한글로 치는 사람이 많다. 고유어(한/두/세/네/다섯…)로 읽어야 함
+      ["오늘 오후 여섯시반 헤어샵",         p=> p.time==="18:30" && p.title==="헤어샵"],
+      ["열두시 점심약속",                  p=> p.time==="12:00" && p.title==="점심약속"],
+      ["내일 열시 반 병원",                p=> p.time==="10:30" && p.title==="병원"],
+      ["오전 여덟시 출근",                 p=> p.time==="08:00" && p.title==="출근"],
+      ["오후 세시 십오분 회의",             p=> p.time==="15:15" && p.title==="회의"],
+      ["열두시 사십오분 점심",              p=> p.time==="12:45" && p.title==="점심"],
+      ["여섯시 오분 출발",                 p=> p.time==="18:05" && p.title==="출발"],
+      // "시" 뒤에 "간"이 오면 시각이 아니라 길이
+      ["1시간 운동",                       p=> p.time==="" && p.title==="1시간 운동"],
+      // 제목만 없는 건 '못 알아들음'이 아니다 — 모달을 열어 제목만 받으면 된다
+      ["오늘 오후 6시 30분",               p=> p && p.time==="18:30" && p.title===""],
+      ["ㅁㄴㅇㄹ",                         p=> p && p.title==="ㅁㄴㅇㄹ"],
       ["3일 전 메모",                      p=> p.date===iso(qaShift(T,-3)) && p.title==="메모"],
       ["2주 후 시험",                      p=> p.date===iso(qaShift(T,14)) && p.title==="시험"],
       ["월요일 아침 회사에서 발표 준비",    p=> p.time==="08:00" && p.location==="회사" && p.title==="발표 준비"],
@@ -3308,8 +3418,8 @@
     document.getElementById("expenseView").style.display  = view==="expense"  ? "block" : "none";
     if(view==="month"){ renderMonth(); renderMonthList(); }
     if(view==="timeline") renderTimeline();
-    if(view==="todo") renderTypeList(todoListEl, "todo");
-    if(view==="event") renderTypeList(eventListEl, "event");
+    if(view==="todo"){ renderUpNext(todoUpNextEl, "todo");   renderTypeList(todoListEl, "todo"); }
+    if(view==="event"){ renderUpNext(eventUpNextEl, "event"); renderTypeList(eventListEl, "event"); }
     if(view==="expense") renderExpenseView();
   }
   document.querySelectorAll(".vt-btn").forEach(btn=>{
@@ -3611,8 +3721,8 @@
     renderHeader();
     renderTimeline();
     if(currentView==="month"){ renderMonth(); renderMonthList(); }
-    if(currentView==="todo") renderTypeList(todoListEl, "todo");
-    if(currentView==="event") renderTypeList(eventListEl, "event");
+    if(currentView==="todo"){ renderUpNext(todoUpNextEl, "todo");   renderTypeList(todoListEl, "todo"); }
+    if(currentView==="event"){ renderUpNext(eventUpNextEl, "event"); renderTypeList(eventListEl, "event"); }
     if(currentView==="expense") renderExpenseView();
     if(findQuery.trim()) renderFind();   // 검색 중에 뭘 고쳐도 결과가 바로 갱신되게
   }
