@@ -411,7 +411,13 @@
   .task-row.dragging{position:relative;z-index:50;}
   .task-row.dragging .task-card{box-shadow:0 10px 26px rgba(0,0,0,.22);opacity:.97;}
   body.reordering{user-select:none;-webkit-user-select:none;}
-  .task-desc{color:var(--muted);font-size:13.5px;margin:8px 0 0 32px;line-height:1.55;}
+  .task-desc{color:var(--muted);font-size:13.5px;margin:8px 0 0 32px;line-height:1.55;
+             overflow-wrap:anywhere;}   /* 긴 URL이 가로로 삐져나가지 않게 */
+  /* 문자 복붙처럼 설명이 길면 카드가 화면을 통째로 잡아먹는다 → 3줄만 보이고 눌러서 펼침 */
+  .task-desc.clamp{display:-webkit-box;-webkit-box-orient:vertical;-webkit-line-clamp:3;overflow:hidden;}
+  .task-desc.clamp.open{display:block;}   /* block이면 line-clamp가 풀린다 */
+  .desc-more{margin:4px 0 0 32px;padding:0;border:0;background:none;cursor:pointer;
+             color:var(--blue);font:inherit;font-size:12.5px;font-weight:700;}
   .repeat-tag{font-size:11.5px;color:var(--blue);margin:8px 0 0 32px;font-weight:700;}
   /* D-day 배지 (카드 우측 상단) */
   .dday{
@@ -2305,7 +2311,8 @@
           ${!t.time ? '<button class="drag-handle" title="드래그로 순서 이동" aria-label="순서 이동">⠿</button>' : ''}
         </div>
         ${t.location ? `<div class="task-desc">📍 ${escapeHtml(t.location)}</div>` : ''}
-        ${t.desc ? `<div class="task-desc">${escapeHtml(t.desc)}</div>` : ''}
+        ${t.desc ? `<div class="task-desc${t.desc.length > 80 ? " clamp" : ""}">${escapeHtml(t.desc)}</div>
+                    ${t.desc.length > 80 ? `<button class="desc-more" type="button">더보기</button>` : ''}` : ''}
         ${isRepeating ? `<div class="repeat-tag">${repeatLabel(t.repeat)}</div>` : ''}
         ${isMulti ? `<div class="repeat-tag" style="color:#2fa36f">${t.type==='todo' ? multiDayTodoLabel(t) : multiDayLabel(t, dateStr)}</div>` : ''}
         <div class="task-meta">
@@ -2327,6 +2334,11 @@
     });
     cont.querySelectorAll(".edit").forEach(el=>{
       el.addEventListener("click", ()=> openTaskModal(el.dataset.id));
+    });
+    cont.querySelectorAll(".desc-more").forEach(el=>{
+      el.addEventListener("click", ()=>{
+        el.textContent = el.previousElementSibling.classList.toggle("open") ? "접기" : "더보기";
+      });
     });
     cont.querySelectorAll(".skip").forEach(el=>{
       el.addEventListener("click", ()=>{
