@@ -1,6 +1,6 @@
 // DDAKCAL 서비스워커 — 오프라인 구동 + 앱 설치
 // index.html이 크게 바뀌면 이 숫자를 올릴 것 — 안 올리면 오프라인일 때 옛 버전이 계속 나옴
-const CACHE = "ddakcal-v4";
+const CACHE = "ddakcal-v5";
 const ASSETS = [
   "./",
   "./index.html",

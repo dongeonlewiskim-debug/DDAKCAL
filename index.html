@@ -2071,12 +2071,34 @@
   function tasksForDate(dateStr){
     return tasks.filter(t=>occursOn(t, dateStr));
   }
-  function isDone(task, dateStr){ return (task.doneDates||[]).includes(dateStr); }
-  function isMissed(task, dateStr){ return (task.missDates||[]).includes(dateStr); }
+  // 여러 날에 걸친 항목(1~4일짜리 할일 등)은 '한 건'이다. 어느 날 체크하든 그 건 전체가 처리된 것.
+  // 예전엔 리스트는 '누른 그 날', 월간 막대는 '시작일'로 조회해서, 3일차에 체크하면
+  // 카드 모양만 바뀌고 달력엔 아무 변화가 없었다. 이제 기간 전체를 하나로 본다.
+  function isRange(task){ return !!(task.endDate && task.date && task.endDate > task.date); }
+  // 기간 안에 표시가 하나라도 있으면 처리된 것으로 본다(예전 방식으로 찍힌 표시도 그대로 산다)
+  function markedIn(list, task){
+    return (list||[]).some(x=> x >= task.date && x <= task.endDate);
+  }
+  function isDone(task, dateStr){
+    return isRange(task) ? markedIn(task.doneDates, task) : (task.doneDates||[]).includes(dateStr);
+  }
+  function isMissed(task, dateStr){
+    return isRange(task) ? markedIn(task.missDates, task) : (task.missDates||[]).includes(dateStr);
+  }
   // 체크칸을 누를 때마다 상태가 한 칸씩 돈다: 빈칸 → 완료(✓) → 못함(✕) → 빈칸
   function cycleStatus(task, dateStr){
     if(!task.doneDates) task.doneDates=[];
     if(!task.missDates) task.missDates=[];
+    if(isRange(task)){
+      // 기간 항목은 시작일 하나에만 기록한다. 기간 안에 흩어져 있던 표시는 싹 정리하고 다시 찍는다.
+      const done = markedIn(task.doneDates, task), miss = markedIn(task.missDates, task);
+      const strip = a => a.filter(x=> !(x >= task.date && x <= task.endDate));
+      task.doneDates = strip(task.doneDates);
+      task.missDates = strip(task.missDates);
+      if(done) task.missDates.push(task.date);        // 완료 → 못함
+      else if(!miss) task.doneDates.push(task.date);  // 빈칸 → 완료 (못함이었으면 빈칸으로)
+      return;
+    }
     const d = task.doneDates.indexOf(dateStr), m = task.missDates.indexOf(dateStr);
     if(d>=0){ task.doneDates.splice(d,1); task.missDates.push(dateStr); }   // 완료 → 못함
     else if(m>=0){ task.missDates.splice(m,1); }                            // 못함 → 빈칸
