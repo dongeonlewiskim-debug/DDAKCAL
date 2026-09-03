@@ -80,6 +80,9 @@
     --sel-tint:rgba(240,114,143,.15);   /* 선택한 날 칸에 덧칠하는 반투명 분홍 */
     --miss:#c9767a;                     /* '못함' 표시색 — danger보다 차분하게 */
     --miss-bg:rgba(201,118,122,.11);
+    /* 스도쿠는 곁다리라 본문보다 한 톤 죽인다 — 격자선과 숫자를 따로 잡아둠 */
+    --sdk-line:#e0e3ea;
+    --sdk-ink:#6a7080;
   }
   /* ===== 다크 테마 (data-theme="dark") ===== */
   :root[data-theme="dark"]{
@@ -96,6 +99,8 @@
     --sel-tint:rgba(240,114,143,.24);   /* 어두운 배경 위에선 더 진해야 보임 */
     --miss:#c98f92;                     /* 다크에선 한 톤 더 부드럽게 */
     --miss-bg:rgba(201,143,146,.10);
+    --sdk-line:#30343e;
+    --sdk-ink:#8f95a4;
     color-scheme:dark;
   }
   /* 흰색으로 하드코딩됐던 표면들 — 다크에서만 덮어씀 */
@@ -232,39 +237,41 @@
   .egg span{background:var(--muted);border-radius:1px;}
   .egg:hover span{background:var(--blue);}
 
-  .sdk{width:min(92vw,430px);}
-  .sdk-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px;}
-  .sdk-bar .data-btn{flex:0 0 auto;}
-  .sdk-diff{display:flex;gap:4px;}
-  .sdk-diff button{font:inherit;font-size:12px;font-weight:700;padding:6px 10px;border-radius:9px;
-                   border:1px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;}
-  .sdk-diff button.on{background:var(--blue);border-color:var(--blue);color:#fff;}
-  .sdk-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:1px;background:var(--border);
-            border:2px solid var(--muted);border-radius:10px;overflow:hidden;user-select:none;
+  /* 사이드바 안에 그대로 들어간다 — 달력을 띄워둔 채로 하는 게 목적이라 팝업이면 안 된다 */
+  .sdk-panel[hidden]{display:none;}
+  /* 곁다리 기능이라 평소엔 한 겹 죽여두고, 손을 올리면 또렷해진다 */
+  .sdk-panel{margin-top:10px;opacity:.62;transition:opacity .2s;}
+  .sdk-panel:hover,.sdk-panel:focus-within{opacity:1;}
+  .sdk-top{display:flex;align-items:center;gap:5px;margin-bottom:6px;}
+  .sdk-top .t{font-size:10px;font-weight:800;color:var(--sdk-ink);letter-spacing:.06em;margin-right:auto;opacity:.7;}
+  .sdk-mini{font:inherit;font-size:10px;font-weight:700;padding:3px 6px;border-radius:7px;
+            border:1px solid transparent;background:var(--card-soft);color:var(--sdk-ink);cursor:pointer;}
+  .sdk-mini:hover{color:var(--blue);}
+  .sdk-mini.on{background:var(--sel-tint);color:var(--blue);}
+  .sdk-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:1px;background:var(--sdk-line);
+            border:1px solid var(--sdk-line);border-radius:7px;overflow:hidden;user-select:none;
             font-variant-numeric:tabular-nums;}
   .sdk-cell{aspect-ratio:1;background:var(--surface);display:flex;align-items:center;justify-content:center;
-            font-size:clamp(13px,4vw,18px);color:var(--text);cursor:pointer;position:relative;
-            transition:background .1s;}
-  .sdk-cell.given{background:var(--card-soft);font-weight:800;}
+            font-size:12.5px;color:var(--sdk-ink);cursor:pointer;position:relative;line-height:1;}
+  .sdk-cell.given{background:var(--card-soft);font-weight:700;}
   .sdk-cell.rel{background:var(--surface-hover);}
-  .sdk-cell.same{color:var(--blue);font-weight:800;}
-  .sdk-cell.sel{background:var(--sel-tint);box-shadow:inset 0 0 0 2px var(--blue);z-index:2;}
+  .sdk-cell.same{color:var(--blue);font-weight:700;}
+  .sdk-cell.sel{background:var(--sel-tint);box-shadow:inset 0 0 0 1.5px var(--blue);z-index:2;}
   .sdk-cell.wrong{color:var(--miss);background:var(--miss-bg);}
-  .sdk-cell.br{border-right:2px solid var(--muted);}
-  .sdk-cell.bb{border-bottom:2px solid var(--muted);}
-  .sdk-notes{position:absolute;inset:2px;display:grid;grid-template-columns:repeat(3,1fr);
-             font-size:8px;line-height:1;color:var(--muted);}
+  .sdk-cell.br{border-right:1.5px solid var(--sdk-line);}
+  .sdk-cell.bb{border-bottom:1.5px solid var(--sdk-line);}
+  .sdk-notes{position:absolute;inset:1px;display:grid;grid-template-columns:repeat(3,1fr);
+             font-size:6.5px;line-height:1;color:var(--sdk-ink);opacity:.6;}
   .sdk-notes span{display:flex;align-items:center;justify-content:center;}
-  .sdk-nums{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:12px;}
-  .sdk-nums button{font:inherit;font-size:17px;font-weight:800;padding:9px 0;border-radius:10px;
-                   border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;
+  .sdk-nums{display:grid;grid-template-columns:repeat(5,1fr);gap:3px;margin-top:6px;}
+  .sdk-nums button{font:inherit;font-size:12px;font-weight:700;padding:5px 0;border-radius:7px;
+                   border:1px solid transparent;background:var(--card-soft);color:var(--sdk-ink);cursor:pointer;
                    font-variant-numeric:tabular-nums;}
-  .sdk-nums button:hover{border-color:var(--blue);}
-  .sdk-nums button:disabled{opacity:.28;cursor:default;}
-  .sdk-msg{margin-top:10px;font-size:12.5px;font-weight:700;color:var(--muted);min-height:18px;}
+  .sdk-nums button:hover{color:var(--blue);}
+  .sdk-nums button:disabled{opacity:.3;cursor:default;}
+  .sdk-msg{margin-top:5px;font-size:10px;font-weight:700;color:var(--sdk-ink);min-height:14px;opacity:.8;}
   .sdk-msg.ok{color:var(--blue);}
   .sdk-msg.err{color:var(--miss);}
-  .sdk-hint{margin-top:6px;font-size:11px;color:var(--muted);line-height:1.6;}
   /* 내보내기/가져오기 — 자주 쓸 게 아니라 텍스트 링크처럼 조용하게 */
   .data-btns{display:flex;flex-direction:column;gap:1px;}
   .data-btn{
@@ -743,6 +750,8 @@
     .sidebar{padding:14px 20px;gap:8px;}
     .user-greeting{margin-top:0;}
     .sidebar-footer{margin-top:0;align-items:flex-end;gap:4px;}
+    /* 폰에선 사이드바가 상단 가로줄이라 스도쿠 자리가 없다 — 데스크톱 전용 */
+    .egg,.sdk-panel{display:none!important;}
     .ghost-btn{flex:none;padding:6px 14px;font-size:12px;border-radius:9px;}
     /* 모바일 사이드바는 상단 띠라 세로로 쌓으면 답답함 → 한 줄로 눕히고 우측 정렬 */
     .data-btns{flex-direction:row;gap:2px;}
@@ -1003,8 +1012,20 @@
         <input type="file" id="importFile" accept="application/json,.json" style="display:none;">
       </div>
       <button class="ghost-btn" id="signOutBtn" style="display:none;">로그아웃</button>
-      <!-- 이스터에그: 평소엔 거의 안 보이는 점 아홉 개. 누르면 스도쿠 -->
+      <!-- 이스터에그: 평소엔 거의 안 보이는 점 아홉 개. 누르면 바로 아래에 스도쿠가 펼쳐진다 -->
       <button class="egg" id="sudokuEgg" title="" aria-label="⋯"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></button>
+      <div class="sdk-panel" id="sudokuPanel" hidden>
+        <div class="sdk-top">
+          <span class="t">SUDOKU</span>
+          <button class="sdk-mini" id="sdkDiffBtn" type="button">보통</button>
+          <button class="sdk-mini" id="sdkNote" type="button">✎</button>
+          <button class="sdk-mini" id="sdkNew" type="button">새로</button>
+          <button class="sdk-mini" id="sdkClose" type="button">✕</button>
+        </div>
+        <div class="sdk-grid" id="sdkGrid"></div>
+        <div class="sdk-nums" id="sdkNums"></div>
+        <div class="sdk-msg" id="sdkMsg"></div>
+      </div>
     </div>
   </div>
 
@@ -1089,30 +1110,6 @@
       <div class="exp-list" id="expList"></div>
     </div>
 
-  </div>
-</div>
-
-<!-- 이스터에그: 스도쿠 -->
-<div class="overlay" id="sudokuOverlay">
-  <div class="modal sdk">
-    <h2>스도쿠</h2>
-    <div class="sdk-bar">
-      <div class="sdk-diff" id="sdkDiff">
-        <button type="button" data-d="easy">쉬움</button>
-        <button type="button" data-d="medium" class="on">보통</button>
-        <button type="button" data-d="hard">어려움</button>
-      </div>
-      <button class="data-btn" id="sdkNew" type="button">새 퍼즐</button>
-      <button class="data-btn" id="sdkNote" type="button">메모 ✎</button>
-      <button class="data-btn" id="sdkClear" type="button">지우기</button>
-    </div>
-    <div class="sdk-grid" id="sdkGrid"></div>
-    <div class="sdk-nums" id="sdkNums"></div>
-    <div class="sdk-msg" id="sdkMsg"></div>
-    <div class="sdk-hint">1–9 입력 · Backspace 지우기 · 방향키 이동 · N 메모 · Esc 닫기</div>
-    <div class="modal-actions">
-      <button class="ghost-btn" type="button" id="sdkClose">닫기</button>
-    </div>
   </div>
 </div>
 
@@ -1995,11 +1992,14 @@
   // ============================================================
   //  이스터에그: 스도쿠 (사이드바 맨 아래 점 아홉 개)
   //  퍼즐 생성·유일해 검사는 원래 쓰던 스도쿠_다크.html 로직 그대로.
-  //  ⚠️ 키 입력은 창이 열려 있을 때만 잡는다. 안 그러면 빠른추가 입력칸에
-  //     숫자를 못 친다(document 전역으로 잡으면 1~9를 다 먹어버림).
+  //  달력을 띄워둔 채로 하는 게 목적이라 팝업이 아니라 사이드바 안에 그대로 들어간다.
+  //  ⚠️ 그래서 키 입력을 조심해야 한다. 앱이 계속 살아있으므로
+  //     ① 판이 닫혀 있으면 아무것도 안 잡고
+  //     ② 입력칸(빠른추가 등)에 커서가 있으면 손대지 않는다.
+  //     안 그러면 "8월 15일" 칠 때 숫자가 스도쿠로 빨려 들어간다.
   // ============================================================
   (function sudokuEgg(){
-    const overlay = document.getElementById("sudokuOverlay");
+    const panel   = document.getElementById("sudokuPanel");
     const gridEl  = document.getElementById("sdkGrid");
     const numsEl  = document.getElementById("sdkNums");
     const msgEl   = document.getElementById("sdkMsg");
@@ -2111,32 +2111,31 @@
       const d=e.target.closest(".sdk-cell"); if(!d) return;
       sel={r:+d.dataset.r, c:+d.dataset.c}; render();
     });
-    document.getElementById("sdkDiff").addEventListener("click", e=>{
-      const b=e.target.closest("button"); if(!b) return;
-      diff=b.dataset.d;
-      [...e.currentTarget.children].forEach(x=>x.classList.toggle("on", x===b));
+    const DIFFS=[["easy","쉬움"],["medium","보통"],["hard","어려움"]];
+    const diffBtn=document.getElementById("sdkDiffBtn");
+    diffBtn.addEventListener("click", ()=>{           // 자리가 좁아서 버튼 하나로 돌려쓴다
+      const i=DIFFS.findIndex(d=>d[0]===diff);
+      [diff]=DIFFS[(i+1)%3]; diffBtn.textContent=DIFFS[(i+1)%3][1];
       newGame();
     });
     document.getElementById("sdkNew").addEventListener("click", newGame);
-    document.getElementById("sdkClear").addEventListener("click", ()=>{
-      for(let r=0;r<9;r++) for(let c=0;c<9;c++) if(!given[r][c]){ cur[r][c]=0; notes[r][c].clear(); }
-      say(""); render();
-    });
     noteBtn.addEventListener("click", ()=>{
       noteMode=!noteMode;
-      noteBtn.textContent = noteMode ? "메모 ✎ 켜짐" : "메모 ✎";
+      noteBtn.classList.toggle("on", noteMode);
     });
 
-    function close(){ overlay.classList.remove("show"); }
+    function close(){ panel.hidden = true; }
     document.getElementById("sdkClose").addEventListener("click", close);
-    closeOnBackdrop(overlay, close);
     document.getElementById("sudokuEgg").addEventListener("click", ()=>{
-      overlay.classList.add("show");
-      if(!sol) newGame();
+      panel.hidden = !panel.hidden;
+      if(!panel.hidden && !sol) newGame();
     });
 
     document.addEventListener("keydown", e=>{
-      if(!overlay.classList.contains("show")) return;      // 창이 닫혀 있으면 아무것도 안 잡는다
+      if(panel.hidden) return;                       // 닫혀 있으면 아무것도 안 잡는다
+      // 어딘가에 글을 쓰고 있으면 스도쿠는 빠진다 (빠른추가·검색·모달 입력칸)
+      const t=e.target;
+      if(t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
       const k=e.key;
       if(k==="Escape"){ close(); return; }
       if(k>="1" && k<="9"){ put(+k); e.preventDefault(); return; }
