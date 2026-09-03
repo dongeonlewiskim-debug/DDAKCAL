@@ -223,6 +223,48 @@
   }
   .theme-toggle:hover{background:var(--surface-hover);}
   .sidebar-footer{margin-top:auto;display:flex;flex-direction:column;gap:8px;}
+
+  /* ── 이스터에그: 스도쿠 ───────────────────────────────────────── */
+  /* 점 아홉 개(3x3). 평소엔 거의 안 보이고 마우스를 올리면 살짝 드러난다 */
+  .egg{margin-top:10px;padding:4px;width:22px;height:22px;border:0;background:none;cursor:pointer;
+       display:grid;grid-template-columns:repeat(3,1fr);gap:2px;opacity:.12;transition:opacity .25s;}
+  .egg:hover,.egg:focus-visible{opacity:.55;}
+  .egg span{background:var(--muted);border-radius:1px;}
+  .egg:hover span{background:var(--blue);}
+
+  .sdk{width:min(92vw,430px);}
+  .sdk-bar{display:flex;flex-wrap:wrap;gap:6px;align-items:center;margin-bottom:12px;}
+  .sdk-bar .data-btn{flex:0 0 auto;}
+  .sdk-diff{display:flex;gap:4px;}
+  .sdk-diff button{font:inherit;font-size:12px;font-weight:700;padding:6px 10px;border-radius:9px;
+                   border:1px solid var(--border);background:var(--surface);color:var(--muted);cursor:pointer;}
+  .sdk-diff button.on{background:var(--blue);border-color:var(--blue);color:#fff;}
+  .sdk-grid{display:grid;grid-template-columns:repeat(9,1fr);gap:1px;background:var(--border);
+            border:2px solid var(--muted);border-radius:10px;overflow:hidden;user-select:none;
+            font-variant-numeric:tabular-nums;}
+  .sdk-cell{aspect-ratio:1;background:var(--surface);display:flex;align-items:center;justify-content:center;
+            font-size:clamp(13px,4vw,18px);color:var(--text);cursor:pointer;position:relative;
+            transition:background .1s;}
+  .sdk-cell.given{background:var(--card-soft);font-weight:800;}
+  .sdk-cell.rel{background:var(--surface-hover);}
+  .sdk-cell.same{color:var(--blue);font-weight:800;}
+  .sdk-cell.sel{background:var(--sel-tint);box-shadow:inset 0 0 0 2px var(--blue);z-index:2;}
+  .sdk-cell.wrong{color:var(--miss);background:var(--miss-bg);}
+  .sdk-cell.br{border-right:2px solid var(--muted);}
+  .sdk-cell.bb{border-bottom:2px solid var(--muted);}
+  .sdk-notes{position:absolute;inset:2px;display:grid;grid-template-columns:repeat(3,1fr);
+             font-size:8px;line-height:1;color:var(--muted);}
+  .sdk-notes span{display:flex;align-items:center;justify-content:center;}
+  .sdk-nums{display:grid;grid-template-columns:repeat(5,1fr);gap:5px;margin-top:12px;}
+  .sdk-nums button{font:inherit;font-size:17px;font-weight:800;padding:9px 0;border-radius:10px;
+                   border:1px solid var(--border);background:var(--surface);color:var(--text);cursor:pointer;
+                   font-variant-numeric:tabular-nums;}
+  .sdk-nums button:hover{border-color:var(--blue);}
+  .sdk-nums button:disabled{opacity:.28;cursor:default;}
+  .sdk-msg{margin-top:10px;font-size:12.5px;font-weight:700;color:var(--muted);min-height:18px;}
+  .sdk-msg.ok{color:var(--blue);}
+  .sdk-msg.err{color:var(--miss);}
+  .sdk-hint{margin-top:6px;font-size:11px;color:var(--muted);line-height:1.6;}
   /* 내보내기/가져오기 — 자주 쓸 게 아니라 텍스트 링크처럼 조용하게 */
   .data-btns{display:flex;flex-direction:column;gap:1px;}
   .data-btn{
@@ -961,6 +1003,8 @@
         <input type="file" id="importFile" accept="application/json,.json" style="display:none;">
       </div>
       <button class="ghost-btn" id="signOutBtn" style="display:none;">로그아웃</button>
+      <!-- 이스터에그: 평소엔 거의 안 보이는 점 아홉 개. 누르면 스도쿠 -->
+      <button class="egg" id="sudokuEgg" title="" aria-label="⋯"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></button>
     </div>
   </div>
 
@@ -1045,6 +1089,30 @@
       <div class="exp-list" id="expList"></div>
     </div>
 
+  </div>
+</div>
+
+<!-- 이스터에그: 스도쿠 -->
+<div class="overlay" id="sudokuOverlay">
+  <div class="modal sdk">
+    <h2>스도쿠</h2>
+    <div class="sdk-bar">
+      <div class="sdk-diff" id="sdkDiff">
+        <button type="button" data-d="easy">쉬움</button>
+        <button type="button" data-d="medium" class="on">보통</button>
+        <button type="button" data-d="hard">어려움</button>
+      </div>
+      <button class="data-btn" id="sdkNew" type="button">새 퍼즐</button>
+      <button class="data-btn" id="sdkNote" type="button">메모 ✎</button>
+      <button class="data-btn" id="sdkClear" type="button">지우기</button>
+    </div>
+    <div class="sdk-grid" id="sdkGrid"></div>
+    <div class="sdk-nums" id="sdkNums"></div>
+    <div class="sdk-msg" id="sdkMsg"></div>
+    <div class="sdk-hint">1–9 입력 · Backspace 지우기 · 방향키 이동 · N 메모 · Esc 닫기</div>
+    <div class="modal-actions">
+      <button class="ghost-btn" type="button" id="sdkClose">닫기</button>
+    </div>
   </div>
 </div>
 
@@ -1923,6 +1991,161 @@
         }
       });
   }
+
+  // ============================================================
+  //  이스터에그: 스도쿠 (사이드바 맨 아래 점 아홉 개)
+  //  퍼즐 생성·유일해 검사는 원래 쓰던 스도쿠_다크.html 로직 그대로.
+  //  ⚠️ 키 입력은 창이 열려 있을 때만 잡는다. 안 그러면 빠른추가 입력칸에
+  //     숫자를 못 친다(document 전역으로 잡으면 1~9를 다 먹어버림).
+  // ============================================================
+  (function sudokuEgg(){
+    const overlay = document.getElementById("sudokuOverlay");
+    const gridEl  = document.getElementById("sdkGrid");
+    const numsEl  = document.getElementById("sdkNums");
+    const msgEl   = document.getElementById("sdkMsg");
+    const noteBtn = document.getElementById("sdkNote");
+    let sol=null, cur=null, given=null, notes=null, sel={r:0,c:0}, diff="medium", noteMode=false;
+
+    const copy = a => a.map(r=>r.slice());
+    const shuffle = a =>{ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; };
+    function ok(b,r,c,v){
+      for(let i=0;i<9;i++){ if(i!==c && b[r][i]===v) return false; if(i!==r && b[i][c]===v) return false; }
+      const br=Math.floor(r/3)*3, bc=Math.floor(c/3)*3;
+      for(let rr=br;rr<br+3;rr++) for(let cc=bc;cc<bc+3;cc++)
+        if((rr!==r||cc!==c) && b[rr][cc]===v) return false;
+      return true;
+    }
+    const empty = b =>{ for(let r=0;r<9;r++) for(let c=0;c<9;c++) if(b[r][c]===0) return [r,c]; return null; };
+    function solve(b, rnd){
+      const s=empty(b); if(!s) return true;
+      const [r,c]=s, ns=[1,2,3,4,5,6,7,8,9]; if(rnd) shuffle(ns);
+      for(const v of ns){ b[r][c]=v; if(ok(b,r,c,v) && solve(b,rnd)) return true; b[r][c]=0; }
+      return false;
+    }
+    function nSol(b, limit){
+      const s=empty(b); if(!s) return 1;
+      const [r,c]=s; let n=0;
+      for(let v=1;v<=9;v++){ b[r][c]=v;
+        if(ok(b,r,c,v)){ n+=nSol(b,limit); if(n>=limit){ b[r][c]=0; return n; } }
+        b[r][c]=0; }
+      return n;
+    }
+    function makePuzzle(solved){
+      const p=copy(solved), keep={easy:40,medium:32,hard:26}[diff]||32;
+      const pos=shuffle([...Array(81).keys()]);
+      let removed=0;
+      for(const i of pos){
+        if(removed >= 81-keep) break;
+        const r=Math.floor(i/9), c=i%9, back=p[r][c];
+        if(!back) continue;
+        p[r][c]=0;
+        if(nSol(copy(p),2)!==1) p[r][c]=back; else removed++;
+      }
+      return p;
+    }
+    function say(m,t){ msgEl.textContent=m||""; msgEl.className="sdk-msg"+(t?" "+t:""); }
+
+    function render(){
+      const {r:sr,c:sc}=sel, sv=cur[sr][sc];
+      let html="";
+      for(let r=0;r<9;r++) for(let c=0;c<9;c++){
+        const v=cur[r][c], cls=["sdk-cell"];
+        if(given[r][c]) cls.push("given");
+        if(r===sr&&c===sc) cls.push("sel"); else if(r===sr||c===sc) cls.push("rel");
+        else if(Math.floor(r/3)===Math.floor(sr/3)&&Math.floor(c/3)===Math.floor(sc/3)) cls.push("rel");
+        if(sv && v===sv) cls.push("same");
+        if(v && v!==sol[r][c]) cls.push("wrong");
+        if(c===2||c===5) cls.push("br");
+        if(r===2||r===5) cls.push("bb");
+        let inner = v ? v : "";
+        if(!v && notes[r][c].size){
+          inner = '<div class="sdk-notes">';
+          for(let n=1;n<=9;n++) inner += "<span>"+(notes[r][c].has(n)?n:"")+"</span>";
+          inner += "</div>";
+        }
+        html += `<div class="${cls.join(" ")}" data-r="${r}" data-c="${c}">${inner}</div>`;
+      }
+      gridEl.innerHTML = html;
+      numsEl.querySelectorAll("button[data-n]").forEach(b=>{
+        let n=0; const t=+b.dataset.n;
+        for(let r=0;r<9;r++) for(let c=0;c<9;c++) if(cur[r][c]===t) n++;
+        b.disabled = n>=9;
+      });
+    }
+    function put(n){
+      const {r,c}=sel; if(given[r][c]) return;
+      if(noteMode){ if(cur[r][c]) return; notes[r][c].has(n)?notes[r][c].delete(n):notes[r][c].add(n); }
+      else{
+        cur[r][c]=n; notes[r][c].clear();
+        say(n!==sol[r][c] ? "틀렸어요" : "", n!==sol[r][c] ? "err" : "");
+      }
+      render(); win();
+    }
+    function del(){ const {r,c}=sel; if(given[r][c]) return; cur[r][c]=0; notes[r][c].clear(); render(); }
+    function win(){
+      for(let r=0;r<9;r++) for(let c=0;c<9;c++) if(cur[r][c]!==sol[r][c]) return;
+      say("🎉 완성! 이제 일정 보러 가시죠","ok");
+    }
+    function newGame(){
+      say("퍼즐 만드는 중…");
+      // 생성이 무거워서(유일해 검사) 한 프레임 넘기고 시작 — 안 그러면 "만드는 중"이 안 보인다
+      setTimeout(()=>{
+        const b=Array.from({length:9},()=>Array(9).fill(0));
+        solve(b,true); sol=b;
+        const p=makePuzzle(sol);
+        cur=copy(p);
+        given=p.map(row=>row.map(v=>v!==0));
+        notes=Array.from({length:9},()=>Array.from({length:9},()=>new Set()));
+        sel={r:0,c:0}; say("");
+        render();
+      }, 20);
+    }
+
+    numsEl.innerHTML = [1,2,3,4,5,6,7,8,9].map(n=>`<button type="button" data-n="${n}">${n}</button>`).join("")
+                     + `<button type="button" id="sdkDel">⌫</button>`;
+    numsEl.addEventListener("click", e=>{
+      const b=e.target.closest("button"); if(!b) return;
+      if(b.id==="sdkDel") del(); else if(b.dataset.n) put(+b.dataset.n);
+    });
+    gridEl.addEventListener("click", e=>{
+      const d=e.target.closest(".sdk-cell"); if(!d) return;
+      sel={r:+d.dataset.r, c:+d.dataset.c}; render();
+    });
+    document.getElementById("sdkDiff").addEventListener("click", e=>{
+      const b=e.target.closest("button"); if(!b) return;
+      diff=b.dataset.d;
+      [...e.currentTarget.children].forEach(x=>x.classList.toggle("on", x===b));
+      newGame();
+    });
+    document.getElementById("sdkNew").addEventListener("click", newGame);
+    document.getElementById("sdkClear").addEventListener("click", ()=>{
+      for(let r=0;r<9;r++) for(let c=0;c<9;c++) if(!given[r][c]){ cur[r][c]=0; notes[r][c].clear(); }
+      say(""); render();
+    });
+    noteBtn.addEventListener("click", ()=>{
+      noteMode=!noteMode;
+      noteBtn.textContent = noteMode ? "메모 ✎ 켜짐" : "메모 ✎";
+    });
+
+    function close(){ overlay.classList.remove("show"); }
+    document.getElementById("sdkClose").addEventListener("click", close);
+    closeOnBackdrop(overlay, close);
+    document.getElementById("sudokuEgg").addEventListener("click", ()=>{
+      overlay.classList.add("show");
+      if(!sol) newGame();
+    });
+
+    document.addEventListener("keydown", e=>{
+      if(!overlay.classList.contains("show")) return;      // 창이 닫혀 있으면 아무것도 안 잡는다
+      const k=e.key;
+      if(k==="Escape"){ close(); return; }
+      if(k>="1" && k<="9"){ put(+k); e.preventDefault(); return; }
+      if(k==="Backspace"||k==="Delete"||k==="0"){ del(); e.preventDefault(); return; }
+      if(k==="n"||k==="N"){ noteBtn.click(); e.preventDefault(); return; }
+      const m={ArrowUp:[-1,0],ArrowDown:[1,0],ArrowLeft:[0,-1],ArrowRight:[0,1]}[k];
+      if(m){ sel.r=(sel.r+m[0]+9)%9; sel.c=(sel.c+m[1]+9)%9; render(); e.preventDefault(); }
+    });
+  })();
 
   function showLoginGate(){ const g=document.getElementById("loginGate"); if(g) g.classList.remove("hidden"); }
   function hideLoginGate(){ const g=document.getElementById("loginGate"); if(g) g.classList.add("hidden"); }
