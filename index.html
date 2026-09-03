@@ -2709,7 +2709,9 @@
       document.getElementById("taskTime").value = t.time || "";
       document.getElementById("taskEndDate").value = t.endDate || t.date;
       document.getElementById("taskEndTime").value = t.endTime || "";
-      document.getElementById("taskAllDay").checked = !!t.allDay;
+      // 할일은 저장할 때 allDay를 강제로 true로 박는다(시간 개념이 없어서). 그건 사용자가 고른 게 아니다.
+      // 그대로 체크해두면 일정으로 바꿨을 때 '종일'이 켜진 채 드러나서 시간 입력칸이 숨겨진다.
+      document.getElementById("taskAllDay").checked = (t.type === "todo") ? false : !!t.allDay;
       document.getElementById("taskDesc").value = t.desc || "";
       taskCategorySel.value = t.category;
       const rep = t.repeat || {type:"none",days:[],until:"",interval:1,count:0};
