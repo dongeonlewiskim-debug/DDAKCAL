@@ -1,47 +1,60 @@
-// DDAKCAL 서비스워커 — 오프라인 구동 + 앱 설치
-// index.html이 크게 바뀌면 이 숫자를 올릴 것 — 안 올리면 오프라인일 때 옛 버전이 계속 나옴
-const CACHE = "ddakcal-v5";
-const ASSETS = [
-  "./",
-  "./index.html",
-  "./manifest.json",
-  "./logo.png"
+// 앱 화면은 기기에 보관한다. 사용자 데이터·로그인 응답은 캐시하지 않는다.
+const CACHE = "ddakcal-v7";
+const ASSETS = ["./", "./index.html", "./manifest.json", "./logo.png"];
+const SDK = [
+  "https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js",
+  "https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js",
+  "https://www.gstatic.com/firebasejs/10.12.5/firebase-firestore-compat.js"
 ];
+const localAssets = new Set(ASSETS.map(p=>new URL(p, self.location.href).href));
 
-// 설치: 핵심 파일 캐시
-self.addEventListener("install", (e)=>{
-  e.waitUntil(caches.open(CACHE).then(c=>c.addAll(ASSETS)));
-  self.skipWaiting();
+self.addEventListener("install", event=>{
+  event.waitUntil((async ()=>{
+    const cache = await caches.open(CACHE);
+    await cache.addAll(ASSETS);
+    await self.skipWaiting();
+  })());
 });
-
-// 활성화: 옛 캐시 정리
-self.addEventListener("activate", (e)=>{
-  e.waitUntil(
-    caches.keys().then(keys=>Promise.all(
-      keys.filter(k=>k!==CACHE).map(k=>caches.delete(k))
-    ))
-  );
-  self.clients.claim();
+self.addEventListener("activate", event=>{
+  event.waitUntil((async ()=>{
+    const keys = await caches.keys();
+    await Promise.all(keys.filter(k=>k.startsWith("ddakcal-") && k!==CACHE).map(k=>caches.delete(k)));
+    await self.clients.claim();
+  })());
 });
-
-// 요청 처리:
-//  - Firebase/구글 등 외부 API는 항상 네트워크 (캐시하지 않음)
-//  - 그 외 앱 파일은 네트워크 우선, 실패 시 캐시(오프라인)
-self.addEventListener("fetch", (e)=>{
-  const req = e.request;
-  if(req.method !== "GET"){ return; }
-
-  const url = new URL(req.url);
-  const isApi = /(googleapis\.com|firebaseio\.com|gstatic\.com|google\.com)/.test(url.hostname);
-  if(isApi){ return; } // 브라우저 기본 처리(항상 네트워크)
-
-  e.respondWith(
-    fetch(req)
-      .then(res=>{
-        const copy = res.clone();
-        caches.open(CACHE).then(c=>c.put(req, copy)).catch(()=>{});
-        return res;
-      })
-      .catch(()=> caches.match(req).then(hit=> hit || caches.match("./index.html")))
-  );
+async function networkOrCache(request){
+  const cache = await caches.open(CACHE);
+  const controller = new AbortController();
+  const timer = setTimeout(()=>controller.abort(), 2000);
+  try{
+    const response = await fetch(request, {signal:controller.signal});
+    if(!response.ok) throw new Error("앱 파일 응답 실패");
+    try{ await cache.put(request, response.clone()); }catch(e){}
+    return response;
+  }catch(e){
+    const cached = await cache.match(request);
+    if(cached) return cached;
+    if(request.mode === "navigate"){
+      const shell = await cache.match("./index.html");
+      if(shell) return shell;
+    }
+    return Response.error();
+  }finally{ clearTimeout(timer); }
+}
+self.addEventListener("fetch", event=>{
+  const request = event.request;
+  if(request.method !== "GET") return;
+  const url = new URL(request.url);
+  // 버전이 고정된 공개 SDK만 캐시한다. 구글 로그인·Firestore API는 제외한다.
+  if(SDK.includes(url.href)){
+    event.respondWith((async ()=>{
+      const cache = await caches.open(CACHE);
+      return (await cache.match(request)) || networkOrCache(request);
+    })());
+    return;
+  }
+  if(url.origin !== self.location.origin) return;
+  const canonical = new URL(url.href); canonical.search = ""; canonical.hash = "";
+  if(!localAssets.has(canonical.href)) return;
+  event.respondWith(networkOrCache(request));
 });
