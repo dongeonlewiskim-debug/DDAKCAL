@@ -1022,6 +1022,7 @@
         <input type="file" id="importFile" accept="application/json,.json" style="display:none;">
       </div>
       <div id="saveStatus" role="status" style="font-size:12px;color:var(--muted);padding:6px 8px;">온라인 자료 확인 중…</div>
+      <button class="data-btn" id="syncCheckBtn">기기 간 연동 확인</button>
       <button class="data-btn" id="reconnectBtn" hidden>온라인 저장을 위해 다시 로그인</button>
       <button class="ghost-btn" id="signOutBtn" style="display:none;">로그아웃</button>
       <!-- 이스터에그: 평소엔 거의 안 보이는 점 아홉 개. 누르면 바로 아래에 스도쿠가 펼쳐진다 -->
@@ -1674,6 +1675,7 @@
       !currentUser && dataOwner() ? "이 기기에 저장됨 · 로그인하면 온라인에도 저장해요" :
       !currentUser ? "로그인 후 저장 상태를 확인합니다." :
       cloudListenError ? "동기화 연결 오류 · 다른 기기의 변경을 받지 못하고 있어요" :
+      syncHealth.errors.deviceBackup ? "기기 백업 실패 · 다른 기기의 변경을 반영하지 못했어요" :
       !cloudLoaded ? "온라인 자료 확인 중…" :
       cloudPending() ? "온라인 저장 중…" :
       recoveryVersion < 1 ? "기존 자료의 온라인 백업 중…" : "온라인 저장·백업 완료";
@@ -1701,6 +1703,9 @@
   const cloudObserved = {tasks:new Map(tasks.map(o=>[o.id,JSON.stringify(o)])),
     expenses:new Map(expenses.map(o=>[o.id,JSON.stringify(o)]))};
   const cloudParentSending = new Set();
+  // 점검용 메모에는 내용·토큰 없이 단계, 오류 코드, 시각만 남긴다.
+  const syncHealth = { reads:{}, errors:{}, lastWrite:null };
+  function noteSyncError(stage, err){ syncHealth.errors[stage] = {code:err.code || "unknown", at:new Date().toISOString()}; }
   let cloudListenError = null, cloudListenTimer = null, cloudListenWait = 3000;
   let cloudSession = 0;
   let cloudLoaded = false, cloudLoadTimer = null;
@@ -1729,10 +1734,11 @@
       if(session !== cloudSession) return;
       const batch = db.batch(); batch.set(base, {recoveryVersion:1}, {merge:true});
       await batch.commit();
-      if(session === cloudSession) recoveryVersion = 1;
+      if(session === cloudSession){ recoveryVersion = 1; delete syncHealth.errors.backup; }
     })().catch(e=>{
       if(session !== cloudSession) return;
       console.warn("기존 자료 자동 백업 실패:", e);
+      noteSyncError("backup", e);
       syncNote("기존 자료의 온라인 백업이 아직 완료되지 않았어요. 다시 시도합니다. 원본은 그대로 있어요.");
     }).finally(()=>{
       if(session !== cloudSession) return;
@@ -1882,6 +1888,7 @@
       .then(()=>{
         if(session !== cloudSession) return;
         // 성공한 것만 '서버에 있다고 아는 상태'에 반영
+        syncHealth.lastWrite = new Date().toISOString(); delete syncHealth.errors.write;
         for(const coll of ITEM_COLLS){
           sentItems[coll].forEach((item, id)=>{
             if(item === null) cloudSynced[coll].delete(id);
@@ -1893,6 +1900,7 @@
       })
       .catch(err=>{
         if(session !== cloudSession) return;
+        noteSyncError("write", err);
         for(const coll of ITEM_COLLS)
           sentItems[coll].forEach((item, id)=>{ if(!cloudQueue[coll].has(id)) cloudQueue[coll].set(id, item); });
         sentFields.forEach(f=>cloudDirty.add(f));
@@ -2004,6 +2012,7 @@
     // 조용히 넘기면 안 된다: 동기화가 안 되면 cloudLoaded가 계속 false라
     // 클라우드에 아무것도 안 올라가는데, 화면은 멀쩡해서 사용자가 모른 채 계속 쓴다.
     console.warn("동기화 오류:", err);
+    noteSyncError("read", err);
     cloudListenError = err.code || "unknown";
     cloudLoaded = false;
     syncNote(cloudListenError === "permission-denied"
@@ -2053,7 +2062,10 @@
       return old && (ch.type === "removed" || JSON.stringify(old) !== JSON.stringify(norm({...ch.doc.data(), id:ch.doc.id})));
     });
     // 반드시 변경 전 저장. 복구본도 못 남기면 기존 화면 내용을 보존한다.
-    if(willReplace && !snapshotForUndo("sync")) return false;
+    if(willReplace && !snapshotForUndo("sync")){
+      noteSyncError("deviceBackup", {code:"local-backup-failed"}); return false;
+    }
+    delete syncHealth.errors.deviceBackup;
     changes.forEach(ch=>{
       const id = ch.doc.id;
       const pending = cloudQueue[coll].has(id) || cloudSending[coll].has(id);
@@ -2078,6 +2090,7 @@
     clearTimeout(cloudListenTimer); cloudListenTimer = null; cloudListenError = null;
     cloudSession++;
     const session = cloudSession;
+    syncHealth.reads = {}; syncHealth.errors = {}; syncHealth.lastWrite = null;
     clearTimeout(cloudWriteTimer); clearTimeout(cloudRetryTimer); cloudRetryTimer = null;
     cloudInFlight = 0; cloudLastWrite = Promise.resolve();
     clearTimeout(recoveryBaselineTimer); recoveryBaselineRunning = false; recoveryVersion = 0;
@@ -2101,6 +2114,7 @@
       if(session !== cloudSession) return;
       const fromCache = !!(doc.metadata && doc.metadata.fromCache);
       if(fromCache || (doc.metadata && doc.metadata.hasPendingWrites)) return;
+      syncHealth.reads.parent = new Date().toISOString();
       const d = doc.exists ? (doc.data() || {}) : null;
       if(!doc.exists && fromCache) return;   // 캐시가 준 "없음"은 안 믿는다
       if(d){
@@ -2127,6 +2141,7 @@
       unsubs.push(base.collection(coll).onSnapshot({includeMetadataChanges:true}, snap=>{
         if(session !== cloudSession) return;
         if(snap.metadata && (snap.metadata.fromCache || snap.metadata.hasPendingWrites)) return;
+        syncHealth.reads[coll] = new Date().toISOString();
         if(!applyItemChanges(coll, snap)) return;
         // 캐시가 준 목록은 안 믿는다 — 이전 판정은 서버 응답으로만
         if(!(snap.metadata && snap.metadata.fromCache)) noteCollIds(base, coll, snap);
@@ -2464,6 +2479,9 @@
     const greetEl = document.getElementById("userGreeting");
     firebase.auth().onAuthStateChanged(user=>{
       if(dataOwner()) persistOutbox();
+      if((currentUser && currentUser.uid) !== (user && user.uid)){
+        syncCheckRun++; syncCheckDialog.close(); syncCheckReport.value=""; syncCheckDetails.replaceChildren();
+      }
       currentUser = user;
       if(user){
         document.getElementById("reconnectBtn").hidden = true;
@@ -4476,6 +4494,152 @@
       ? "온라인 백업 접근이 허용되지 않았어요. 사이트의 백업 권한 설정을 확인해야 해요. 현재 일정은 그대로 있어요."
       : "온라인 백업을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 눌러 주세요."; }
     finally{ recoveryMore.disabled = false; }
+  });
+
+  // 서버/기기 비교는 읽기 전용이다. 차이가 있어도 자동으로 덮어쓰거나 큐에 넣지 않는다.
+  const syncCheckDialog = document.createElement("dialog");
+  syncCheckDialog.className = "recovery-dialog";
+  syncCheckDialog.setAttribute("aria-labelledby", "syncCheckTitle");
+  syncCheckDialog.style.cssText = recoveryDialog.style.cssText;
+  syncCheckDialog.innerHTML = '<h2 id="syncCheckTitle" tabindex="-1" autofocus>기기 간 연동 확인</h2><p>이 기기의 일정과 서버에 저장된 일정을 비교해요. 점검 때문에 일정이 바뀌지는 않아요.</p><p id="syncCheckSummary" role="status"></p><div id="syncCheckDetails"></div><p>PC와 폰에서 각각 ‘결과 복사’를 눌러 보내주세요. 일정 내용과 로그인 정보는 포함하지 않아요.</p><details><summary>점검 세부 정보</summary><label for="syncCheckReport">점검 결과</label><textarea id="syncCheckReport" readonly style="width:100%;min-height:150px;margin:8px 0 16px;padding:12px;background:var(--card-soft);color:var(--text);border:1px solid var(--border);border-radius:10px;font-size:13px;"></textarea></details><button type="button" id="syncCheckCopy">결과 복사</button> <button type="button" id="syncCheckAgain">다시 확인</button> <button type="button" id="syncCheckExport">이 기기 일정 파일로 보관</button> <button type="button" id="syncCheckClose">닫기</button>';
+  document.body.appendChild(syncCheckDialog);
+  const syncCheckSummary = document.getElementById("syncCheckSummary");
+  const syncCheckDetails = document.getElementById("syncCheckDetails");
+  const syncCheckReport = document.getElementById("syncCheckReport");
+  const syncCheckAgain = document.getElementById("syncCheckAgain");
+  let syncCheckRun = 0;
+  function stableSyncValue(value){
+    if(Array.isArray(value)) return value.map(stableSyncValue);
+    if(value && typeof value === "object") return Object.fromEntries(Object.keys(value).sort().map(k=>[k,stableSyncValue(value[k])]));
+    return value;
+  }
+  function syncRecordText(items){
+    return JSON.stringify(stableSyncValue(items.slice().sort((a,b)=>a.id < b.id ? -1 : a.id > b.id ? 1 : 0)));
+  }
+  async function syncFingerprint(value){
+    if(!window.crypto || !window.crypto.subtle) return "비교 번호 미지원";
+    const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value));
+    return Array.from(new Uint8Array(bytes)).map(b=>b.toString(16).padStart(2,"0")).join("").slice(0,24);
+  }
+  function syncReadWithTimeout(ref){
+    let timer;
+    return Promise.race([
+      Promise.resolve().then(()=>ref.get({source:"server"})),
+      new Promise((_,reject)=>{ timer=setTimeout(()=>reject({code:"deadline-exceeded"}),10000); })
+    ]).finally(()=>clearTimeout(timer));
+  }
+  function syncErrorHelp(code){
+    return code === "permission-denied" ? "서버가 접근을 거절했어요. 서버의 권한 설정 확인이 필요해요." :
+      code === "unauthenticated" ? "로그인을 다시 확인해야 해요. 기기 일정은 그대로 두세요." :
+      code === "resource-exhausted" ? "서버 사용 한도에 걸렸어요. 서버 사용량을 확인해야 해요." :
+      code === "deadline-exceeded" ? "서버가 10초 안에 답하지 않았어요. 연결 상태를 확인해 주세요." :
+      "서버에 연결하지 못했어요. 연결 상태나 오류 코드를 확인해야 해요.";
+  }
+  async function runSyncCheck(){
+    const run = ++syncCheckRun, session = cloudSession, owner = dataOwner();
+    document.getElementById("syncCheckCopy").textContent="결과 복사";
+    syncCheckAgain.disabled = true; document.getElementById("syncCheckCopy").disabled = true;
+    syncCheckDetails.replaceChildren(); syncCheckReport.value = "";
+    syncCheckSummary.textContent = "서버와 이 기기의 저장 상태를 확인하는 중…";
+    const unchanged = ()=>run === syncCheckRun && session === cloudSession && owner === dataOwner() && syncCheckDialog.open;
+    const local = {tasks:JSON.parse(JSON.stringify(tasks)), expenses:JSON.parse(JSON.stringify(expenses))};
+    const localSignature = ITEM_COLLS.map(c=>syncRecordText(local[c])).join("|");
+    const report = {version:"2026-09-18-sync11", checkedAt:new Date().toISOString(), origin:location.origin,
+      account:null, signedIn:!!currentUser, browserOnline:!deviceOffline(), initialServerLoaded:cloudLoaded,
+      waiting:{tasks:cloudQueue.tasks.size, expenses:cloudQueue.expenses.size, categories:cloudDirty.size},
+      inFlight:cloudInFlight, deviceWriteFailed:localWriteFailures.size > 0,
+      display:{view:currentView,searchActive:!!findQuery.trim(),enabledCategories:activeCatFilter.size,totalCategories:categories.length},
+      syncErrors:JSON.parse(JSON.stringify(syncHealth.errors)), lastServerRead:{...syncHealth.reads}, lastServerWrite:syncHealth.lastWrite,
+      comparisons:{}};
+    function detail(text){ const p=document.createElement("p"); p.textContent=text; syncCheckDetails.appendChild(p); }
+    try{
+      report.account = owner ? await syncFingerprint(firebaseConfig.projectId+":"+owner) : "로그인 기록 없음";
+      if(!unchanged()) return;
+      if(deviceOffline()){
+        report.result="offline"; syncCheckSummary.textContent="인터넷이 끊겨 서버와 비교할 수 없어요.";
+      }else if(!currentUser){
+        report.result="login-required"; syncCheckSummary.textContent="이 기기는 현재 서버에 로그인되어 있지 않아요.";
+        detail("기기에 저장된 화면만 열려 있는 상태예요. 같은 구글 계정으로 다시 로그인해야 다른 기기와 연결돼요.");
+      }else if(!db){
+        report.result="sdk-not-ready"; syncCheckSummary.textContent="로그인·연동 기능을 아직 불러오지 못했어요.";
+      }else{
+        const base=db.collection("users").doc(currentUser.uid);
+        const results=await Promise.allSettled([
+          syncReadWithTimeout(base), syncReadWithTimeout(base.collection("tasks")),
+          syncReadWithTimeout(base.collection("expenses")), syncReadWithTimeout(base.collection("recovery").limit(1))
+        ]);
+        if(!unchanged()) return;
+        const labels=["계정 설정", "일정", "지출", "백업"];
+        report.serverReads={};
+        results.forEach((r,i)=>{
+          const key=["parent","tasks","expenses","backup"][i];
+          report.serverReads[key]=r.status === "fulfilled" ? "ok" : r.reason.code || "unknown";
+          if(r.status === "rejected") detail(labels[i]+": "+syncErrorHelp(report.serverReads[key]));
+        });
+        let different=0, pendingSnapshot=results[0].status === "fulfilled" && !!(results[0].value.metadata && (results[0].value.metadata.fromCache || results[0].value.metadata.hasPendingWrites));
+        for(const [i,coll] of ITEM_COLLS.entries()){
+          const r=results[i+1]; if(r.status !== "fulfilled") continue;
+          const snap=r.value;
+          if((snap.metadata && (snap.metadata.fromCache || snap.metadata.hasPendingWrites)) || snap.docs.some(d=>d.metadata && d.metadata.hasPendingWrites)){
+            pendingSnapshot=true; report.comparisons[coll]={result:"server-unconfirmed"};
+            detail((coll === "tasks" ? "일정" : "지출")+": 서버 확정본을 아직 받지 못해서 비교를 보류했어요."); continue;
+          }
+          const remote=snap.docs.map(d=>normOf(coll)({...d.data(),id:d.id}));
+          const here=new Map(local[coll].map(x=>[x.id,JSON.stringify(stableSyncValue(x))]));
+          const there=new Map(remote.map(x=>[x.id,JSON.stringify(stableSyncValue(x))]));
+          const localOnly=[...here.keys()].filter(id=>!there.has(id)).length;
+          const serverOnly=[...there.keys()].filter(id=>!here.has(id)).length;
+          const differentContent=[...here.keys()].filter(id=>there.has(id) && here.get(id)!==there.get(id)).length;
+          different+=localOnly+serverOnly+differentContent;
+          report.comparisons[coll]={local:here.size,server:there.size,localOnly,serverOnly,differentContent,
+            localFingerprint:await syncFingerprint(syncRecordText(local[coll])),serverFingerprint:await syncFingerprint(syncRecordText(remote))};
+          if(!unchanged()) return;
+          detail(`${coll === "tasks" ? "일정" : "지출"}: 기기 ${here.size}개 / 서버 ${there.size}개 · 기기에만 ${localOnly}개 · 서버에만 ${serverOnly}개 · 내용이 다른 것 ${differentContent}개`);
+        }
+        if(results[0].status === "fulfilled"){
+          const d=results[0].value.exists ? results[0].value.data() : {};
+          report.legacyArrays={tasks:Array.isArray(d.tasks)?d.tasks.length:0,expenses:Array.isArray(d.expenses)?d.expenses.length:0};
+        }
+        const moved=localSignature !== ITEM_COLLS.map(c=>syncRecordText(listOf(c))).join("|");
+        const failed=results.slice(0,3).some(r=>r.status === "rejected");
+        report.result=failed?"server-read-failed":moved?"changed-during-check":pendingSnapshot?"server-unconfirmed":different?"different":"matched";
+        syncCheckSummary.textContent=failed ? "서버 자료를 읽지 못한 항목이 있어요." :
+          moved ? "점검 도중 일정이 바뀌었어요. 잠시 후 ‘다시 확인’을 눌러 주세요." :
+          pendingSnapshot ? "서버 저장이 확정되기를 기다리고 있어요." :
+          different ? "이 기기와 서버의 내용이 달라요. 결과를 보내주면 어느 쪽에서 막혔는지 확인할 수 있어요." :
+          "현재 이 기기의 일정·지출 내용은 서버와 같아요. 다른 기기의 결과와 비교해 주세요.";
+        if(different) detail("기기에만 있는 일정이 새 일정인지, 다른 기기에서 지운 일정인지는 이 점검만으로 구분할 수 없어 자동으로 덮어쓰지 않아요.");
+        if(report.syncErrors.write?.code === "permission-denied") detail("실제 저장 요청이 서버에서 거절된 기록이 있어요. 일정·백업 저장 권한 확인이 필요해요.");
+        if(report.syncErrors.deviceBackup) detail("기기에 복구본을 보관하지 못해 서버의 변경 내용을 화면에 반영하지 못한 기록이 있어요.");
+        if(report.waiting.tasks || report.waiting.expenses || report.waiting.categories || report.inFlight) detail("서버로 보내는 중이거나 대기 중인 변경이 있어요. 기기 자료를 지우거나 로그아웃하지 마세요.");
+        if(results[3].status === "rejected") detail("백업 조회 권한은 저장 권한과 별도로 확인해야 해요.");
+      }
+      if(unchanged()) syncCheckReport.value=syncCheckSummary.textContent+"\n\n"+JSON.stringify(report,null,2);
+    }catch(e){
+      if(unchanged()){
+        report.result="check-failed"; report.error=e.code || "unknown";
+        syncCheckSummary.textContent="점검을 끝내지 못했어요. 일정은 그대로 있어요.";
+        syncCheckReport.value=JSON.stringify(report,null,2);
+      }
+    }finally{
+      if(run === syncCheckRun){
+        syncCheckAgain.disabled=false; document.getElementById("syncCheckCopy").disabled=!syncCheckReport.value;
+        if(!unchanged() && syncCheckDialog.open){
+          syncCheckDetails.replaceChildren(); syncCheckReport.value="";
+          document.getElementById("syncCheckCopy").disabled=true;
+          syncCheckSummary.textContent="로그인이나 연결 상태가 바뀌었어요. ‘다시 확인’을 눌러 주세요.";
+        }
+      }
+    }
+  }
+  document.getElementById("syncCheckBtn").addEventListener("click", ()=>{ syncCheckDialog.showModal(); runSyncCheck(); });
+  syncCheckAgain.addEventListener("click", runSyncCheck);
+  syncCheckDialog.addEventListener("close", ()=>{ syncCheckRun++; syncCheckReport.value=""; });
+  document.getElementById("syncCheckClose").addEventListener("click", ()=>syncCheckDialog.close());
+  document.getElementById("syncCheckExport").addEventListener("click", ()=>document.getElementById("exportBtn").click());
+  document.getElementById("syncCheckCopy").addEventListener("click", async ()=>{
+    try{ await navigator.clipboard.writeText(syncCheckReport.value); document.getElementById("syncCheckCopy").textContent="복사했어요"; }
+    catch(e){ syncCheckReport.focus(); syncCheckReport.select(); syncCheckSummary.textContent="결과를 선택했어요. 길게 눌러 복사하거나 Ctrl+C를 눌러 주세요."; }
   });
 
   const importFile = document.getElementById("importFile");
