@@ -1,5 +1,5 @@
 // 앱 화면은 기기에 보관한다. 사용자 데이터·로그인 응답은 캐시하지 않는다.
-const CACHE = "ddakcal-v11";
+const CACHE = "ddakcal-v12";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./logo.png"];
 const SDK = [
   "https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js",
@@ -28,6 +28,9 @@ async function networkOrCache(request){
   const timer = setTimeout(()=>controller.abort(), 2000);
   try{
     const response = await fetch(request, {signal:controller.signal});
+    // 이전 HTML의 일반 외부 script 요청은 opaque(status 0)여도 정상 응답일 수 있다.
+    // 브라우저가 실행 여부를 판단하도록 전달하되 성공을 검증할 수 없어 캐시하지 않는다.
+    if(response.type === "opaque") return response;
     if(!response.ok) throw new Error("앱 파일 응답 실패");
     try{ await cache.put(request, response.clone()); }catch(e){}
     return response;

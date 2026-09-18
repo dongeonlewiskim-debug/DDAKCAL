@@ -1657,6 +1657,7 @@
 
   let db = null, currentUser = null, cloudReady = false, cloudUnsub = null, cloudWriteTimer = null;
   let offlineOwner = null, cloudInitialized = false, cloudConnecting = null, signingOut = false;
+  let cloudAuthState = "loading", cloudConnectError = null;
 
   // 바뀐 묶음만 올린다. 예전엔 매번 전체(일정+카테고리+지출)를 통째로 써서,
   // 체크박스 한 번 누를 때마다 데이터 전량이 업로드됐음(모바일에서 체감됨).
@@ -1670,8 +1671,15 @@
   function updateSaveStatus(){
     const el = document.getElementById("saveStatus");
     if(!el) return;
+    const reconnect = document.getElementById("reconnectBtn");
+    if(reconnect){
+      reconnect.hidden = !!currentUser || deviceOffline() || !dataOwner();
+      reconnect.textContent = cloudConnectError ? "온라인 연결 다시 시도" : "로그인하고 다른 기기와 연결";
+    }
     el.textContent = localWriteFailures.size ? "기기 저장 실패 · 창을 닫지 말아 주세요" :
       deviceOffline() && dataOwner() ? "이 기기에 저장됨 · 인터넷이 연결되면 온라인에도 저장해요" :
+      cloudConnectError ? "로그인 기능 연결 실패 · 기기 일정만 보고 있어요" :
+      !currentUser && cloudAuthState === "loading" ? "기기 일정을 열었어요 · 서버 로그인 확인 중…" :
       !currentUser && dataOwner() ? "이 기기에 저장됨 · 로그인하면 온라인에도 저장해요" :
       !currentUser ? "로그인 후 저장 상태를 확인합니다." :
       cloudListenError ? "동기화 연결 오류 · 다른 기기의 변경을 받지 못하고 있어요" :
@@ -2445,6 +2453,8 @@
     if(cloudScripts.has(src)) return cloudScripts.get(src);
     const promise = new Promise((resolve,reject)=>{
       const script = document.createElement("script"); script.src = src; script.async = true;
+      // 공개 Firebase SDK는 CORS를 지원한다. SW가 상태 코드를 확인하고 정상 파일만 캐시한다.
+      if(/\/firebase-(app|auth|firestore)-compat\.js$/.test(src)) script.crossOrigin = "anonymous";
       const timer = setTimeout(()=>{ script.remove(); reject(new Error("로그인 파일 연결 시간 초과")); }, 6000);
       script.onload = ()=>{ clearTimeout(timer); resolve(); };
       script.onerror = ()=>{ clearTimeout(timer); script.remove(); reject(new Error("로그인 파일 연결 실패")); };
@@ -2456,6 +2466,7 @@
     if(deviceOffline()){ tryOfflineAccess(); updateSaveStatus(); return; }
     if(cloudInitialized){ retryCloudListener(); cloudFlushSoon(); updateSaveStatus(); return; }
     if(cloudConnecting) return cloudConnecting;
+    cloudAuthState = "loading"; cloudConnectError = null;
     cloudConnecting = (async ()=>{
       if(!window.firebase) await loadCloudScript("https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js");
       if(!firebase.auth) await loadCloudScript("https://www.gstatic.com/firebasejs/10.12.5/firebase-auth-compat.js");
@@ -2463,7 +2474,9 @@
       initCloud(); cloudInitialized = true;
     })().catch(err=>{
       console.warn("클라우드 연결 대기:",err);
+      cloudAuthState = "unavailable"; cloudConnectError = "sdk-load-failed";
       if(!tryOfflineAccess()) loginBlocked();
+      syncNote("로그인 기능을 불러오지 못해 기기 일정만 보고 있어요. 다른 기기와 연동되지 않고 있어요. ‘온라인 연결 다시 시도’를 눌러 주세요.");
     }).finally(()=>{ cloudConnecting=null; updateSaveStatus(); });
     return cloudConnecting;
   }
@@ -2478,6 +2491,8 @@
     const signOutBtn = document.getElementById("signOutBtn");
     const greetEl = document.getElementById("userGreeting");
     firebase.auth().onAuthStateChanged(user=>{
+      cloudAuthState = user ? "signed-in" : "signed-out";
+      cloudConnectError = null;
       if(dataOwner()) persistOutbox();
       if((currentUser && currentUser.uid) !== (user && user.uid)){
         syncCheckRun++; syncCheckDialog.close(); syncCheckReport.value=""; syncCheckDetails.replaceChildren();
@@ -4544,8 +4559,10 @@
     const unchanged = ()=>run === syncCheckRun && session === cloudSession && owner === dataOwner() && syncCheckDialog.open;
     const local = {tasks:JSON.parse(JSON.stringify(tasks)), expenses:JSON.parse(JSON.stringify(expenses))};
     const localSignature = ITEM_COLLS.map(c=>syncRecordText(local[c])).join("|");
-    const report = {version:"2026-09-18-sync11", checkedAt:new Date().toISOString(), origin:location.origin,
+    const report = {version:"2026-09-18-sync12", checkedAt:new Date().toISOString(), origin:location.origin,
       account:null, signedIn:!!currentUser, browserOnline:!deviceOffline(), initialServerLoaded:cloudLoaded,
+      authState:cloudAuthState, connectionError:cloudConnectError,
+      sdkLoaded:{app:!!window.firebase,auth:!!(window.firebase && firebase.auth),database:!!(window.firebase && firebase.firestore)},
       waiting:{tasks:cloudQueue.tasks.size, expenses:cloudQueue.expenses.size, categories:cloudDirty.size},
       inFlight:cloudInFlight, deviceWriteFailed:localWriteFailures.size > 0,
       display:{view:currentView,searchActive:!!findQuery.trim(),enabledCategories:activeCatFilter.size,totalCategories:categories.length},
@@ -4557,11 +4574,14 @@
       if(!unchanged()) return;
       if(deviceOffline()){
         report.result="offline"; syncCheckSummary.textContent="인터넷이 끊겨 서버와 비교할 수 없어요.";
+      }else if(cloudConnectError || !db){
+        report.result="sdk-not-ready"; syncCheckSummary.textContent="로그인 기능을 불러오지 못해 다른 기기와 연결되지 않아요.";
+        detail("창을 닫고 ‘온라인 연결 다시 시도’를 눌러 주세요. 기존 일정과 전송 대기 내용은 그대로 있어요.");
+      }else if(!currentUser && cloudAuthState === "loading"){
+        report.result="auth-loading"; syncCheckSummary.textContent="서버 로그인 상태를 확인 중이에요. 잠시 후 다시 확인해 주세요.";
       }else if(!currentUser){
         report.result="login-required"; syncCheckSummary.textContent="이 기기는 현재 서버에 로그인되어 있지 않아요.";
         detail("기기에 저장된 화면만 열려 있는 상태예요. 같은 구글 계정으로 다시 로그인해야 다른 기기와 연결돼요.");
-      }else if(!db){
-        report.result="sdk-not-ready"; syncCheckSummary.textContent="로그인·연동 기능을 아직 불러오지 못했어요.";
       }else{
         const base=db.collection("users").doc(currentUser.uid);
         const results=await Promise.allSettled([
