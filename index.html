@@ -1017,7 +1017,7 @@
       <div class="data-btns">
         <button class="data-btn" id="exportBtn">데이터 내보내기</button>
         <button class="data-btn" id="importBtn">데이터 가져오기</button>
-        <button class="data-btn" id="recoveryBtn">백업에서 복구</button>
+        <button class="data-btn" id="recoveryBtn">백업 리스트</button>
         <button class="data-btn undo" id="undoImportBtn" style="display:none;">↩ 최근 백업 복구</button>
         <input type="file" id="importFile" accept="application/json,.json" style="display:none;">
       </div>
@@ -1670,8 +1670,10 @@
     const el = document.getElementById("saveStatus");
     if(!el) return;
     el.textContent = localWriteFailures.size ? "기기 저장 실패 · 창을 닫지 말아 주세요" :
-      (deviceOffline() || !currentUser) && dataOwner() ? "이 기기에 저장됨 · 온라인 연결 대기" :
+      deviceOffline() && dataOwner() ? "이 기기에 저장됨 · 인터넷이 연결되면 온라인에도 저장해요" :
+      !currentUser && dataOwner() ? "이 기기에 저장됨 · 로그인하면 온라인에도 저장해요" :
       !currentUser ? "로그인 후 저장 상태를 확인합니다." :
+      cloudListenError ? "동기화 연결 오류 · 다른 기기의 변경을 받지 못하고 있어요" :
       !cloudLoaded ? "온라인 자료 확인 중…" :
       cloudPending() ? "온라인 저장 중…" :
       recoveryVersion < 1 ? "기존 자료의 온라인 백업 중…" : "온라인 저장·백업 완료";
@@ -1699,6 +1701,7 @@
   const cloudObserved = {tasks:new Map(tasks.map(o=>[o.id,JSON.stringify(o)])),
     expenses:new Map(expenses.map(o=>[o.id,JSON.stringify(o)]))};
   const cloudParentSending = new Set();
+  let cloudListenError = null, cloudListenTimer = null, cloudListenWait = 3000;
   let cloudSession = 0;
   let cloudLoaded = false, cloudLoadTimer = null;
   const cloudPartsLoaded = { parent:false, tasks:false, expenses:false };
@@ -1774,7 +1777,7 @@
       pending[coll] = [...new Map([...cloudSending[coll], ...cloudQueue[coll]])];
     }
     const fields = [...new Set([...cloudParentSending, ...cloudDirty])];
-    storeSet(LS_OUTBOX + "_" + owner, JSON.stringify({owner, pending, fields,
+    return storeSet(LS_OUTBOX + "_" + owner, JSON.stringify({owner, pending, fields,
       parent:{categories, expenseCats}}));
   }
   function restoreOutbox(owner){
@@ -1813,6 +1816,7 @@
   // 받아오지 못한 채로 계속 쓰고 있는 상황을 사용자에게 알린다(오류 없이 그냥 안 오는 경우도 있음)
   function markCloudLoaded(){
     cloudLoaded = true;
+    cloudListenWait = 3000;
     rememberOfflineAccount();
     clearTimeout(cloudLoadTimer);
     syncNote("");
@@ -1892,7 +1896,9 @@
         for(const coll of ITEM_COLLS)
           sentItems[coll].forEach((item, id)=>{ if(!cloudQueue[coll].has(id)) cloudQueue[coll].set(id, item); });
         sentFields.forEach(f=>cloudDirty.add(f));
-        syncNote("저장이 안 됐어요. 다시 시도하는 중…");
+        syncNote(err.code === "permission-denied"
+          ? "서버가 저장을 허용하지 않았어요. 일정과 백업의 저장 권한을 확인해야 해요. 변경 내용은 이 기기에 남아 있어요."
+          : "저장이 안 됐어요. 다시 시도하는 중…");
         console.warn("클라우드 저장 실패:", err);
         // 사용자가 다음에 뭘 고칠 때까지 기다리지 않고 스스로 재시도한다(점점 간격을 늘림)
         clearTimeout(cloudRetryTimer);
@@ -1955,6 +1961,7 @@
   // 없으면: A 로그아웃 → B 로그인 시 B의 문서가 아직 없어서 A의 데이터가 B 계정으로 업로드됨(실제 있던 버그)
   function clearLocalData(){
     cloudSession++;
+    clearTimeout(cloudListenTimer); cloudListenTimer = null; cloudListenError = null;
     clearTimeout(cloudRetryTimer); cloudRetryTimer = null;
     cloudInFlight = 0; cloudLastWrite = Promise.resolve();
     clearTimeout(recoveryBaselineTimer); recoveryBaselineRunning = false;
@@ -1981,6 +1988,7 @@
 
   // 세 부분(부모 문서 + tasks + expenses)이 다 들어오면 쓰기를 허용한다
   function maybeMarkLoaded(){
+    if(cloudListenError) return;
     if(mig.legacy && !mig.done) return; // 옛 자료를 옮기는 동안 새 저장과 경합하지 않는다.
     if(cloudPartsLoaded.parent && cloudPartsLoaded.tasks && cloudPartsLoaded.expenses && !cloudLoaded){
       markCloudLoaded();
@@ -1996,8 +2004,31 @@
     // 조용히 넘기면 안 된다: 동기화가 안 되면 cloudLoaded가 계속 false라
     // 클라우드에 아무것도 안 올라가는데, 화면은 멀쩡해서 사용자가 모른 채 계속 쓴다.
     console.warn("동기화 오류:", err);
-    syncNote("클라우드에 연결하지 못했어요. 지금 쓴 내용은 이 기기에만 저장됩니다.");
+    cloudListenError = err.code || "unknown";
+    cloudLoaded = false;
+    syncNote(cloudListenError === "permission-denied"
+      ? "서버에 연결하지 못했어요. 일정 접근 권한을 확인해야 해요. 지금 쓴 내용은 이 기기에 남아 있어요."
+      : "서버에 연결하지 못했어요. 다른 기기의 변경을 받도록 다시 연결합니다. 지금 쓴 내용은 이 기기에 남아 있어요.");
     updateSaveStatus();
+    scheduleCloudListenRetry();
+  }
+  function scheduleCloudListenRetry(){
+    if(cloudListenTimer) return;
+    const session = cloudSession;
+    cloudListenTimer = setTimeout(()=>{
+      cloudListenTimer = null;
+      if(session !== cloudSession || !currentUser || !cloudListenError) return;
+      cloudListenWait = Math.min(cloudListenWait * 2, 30000);
+      retryCloudListener();
+    }, cloudListenWait);
+  }
+  function retryCloudListener(){
+    if(!currentUser || !cloudListenError) return;
+    // 진행 중 저장의 성공/실패를 먼저 확정해야 같은 요청을 중복 재전송하지 않는다.
+    if(deviceOffline() || cloudInFlight || !persistOutbox()){
+      scheduleCloudListenRetry(); return;
+    }
+    startCloudSync(currentUser.uid);
   }
 
   // 항목 하나 단위로 반영한다. 배열을 통째로 갈아치우지 않으므로
@@ -2044,6 +2075,7 @@
 
   function startCloudSync(uid){
     if(cloudUnsub) cloudUnsub();
+    clearTimeout(cloudListenTimer); cloudListenTimer = null; cloudListenError = null;
     cloudSession++;
     const session = cloudSession;
     clearTimeout(cloudWriteTimer); clearTimeout(cloudRetryTimer); cloudRetryTimer = null;
@@ -2088,7 +2120,7 @@
       cloudPartsLoaded.parent = true;
       maybeMarkLoaded();
       renderAll();
-    }, onSyncError));
+    }, err=>{ if(session === cloudSession) onSyncError(err); }));
 
     // ② 일정 / ③ 지출 — 항목별 문서
     ITEM_COLLS.forEach(coll=>{
@@ -2101,7 +2133,7 @@
         cloudPartsLoaded[coll] = true;
         maybeMarkLoaded();
         renderAll();
-      }, onSyncError));
+      }, err=>{ if(session === cloudSession) onSyncError(err); }));
     });
 
     cloudUnsub = ()=> unsubs.forEach(u=>{ try{ u(); }catch(e){} });
@@ -2407,7 +2439,7 @@
   }
   async function connectCloud(){
     if(deviceOffline()){ tryOfflineAccess(); updateSaveStatus(); return; }
-    if(cloudInitialized){ cloudFlushSoon(); updateSaveStatus(); return; }
+    if(cloudInitialized){ retryCloudListener(); cloudFlushSoon(); updateSaveStatus(); return; }
     if(cloudConnecting) return cloudConnecting;
     cloudConnecting = (async ()=>{
       if(!window.firebase) await loadCloudScript("https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js");
@@ -2451,6 +2483,7 @@
         startCloudSync(user.uid);
       } else {
         cloudSession++;
+        clearTimeout(cloudListenTimer); cloudListenTimer = null; cloudListenError = null;
         recoveryDialog.close(); recoveryList.replaceChildren(); recoveryOwner = null;
         clearTimeout(cloudRetryTimer); cloudRetryTimer = null;
         cloudLoaded = false;                  // 로그아웃/세션만료 — 다시 받기 전엔 쓰기 금지
@@ -4375,18 +4408,23 @@
   recoveryDialog.className = "recovery-dialog";
   recoveryDialog.setAttribute("aria-labelledby", "recoveryTitle");
   recoveryDialog.style.cssText = "width:min(640px,calc(100vw - 32px));max-height:80vh;overflow:auto;border:1px solid var(--border);border-radius:16px;padding:24px;background:var(--surface,#fff);color:var(--text,#222)";
-  recoveryDialog.innerHTML = '<h2 id="recoveryTitle">백업에서 복구</h2><p>현재 일정은 지우지 않습니다. 같은 항목의 내용이 다르면 복구본을 추가합니다.</p><p>이 기기의 최근 백업과, 새 버전에서 온라인 저장한 기록을 확인할 수 있어요.</p><div id="recoveryList"></div><p id="recoveryNote" role="status"></p><button type="button" id="recoveryMore">온라인 백업 보기</button> <button type="button" id="recoveryClose">닫기</button>';
+  recoveryDialog.innerHTML = '<h2 id="recoveryTitle">백업 리스트</h2><p>현재 일정은 지우지 않습니다. 같은 항목의 내용이 다르면 복구본을 추가합니다.</p><p>이 기기의 최근 백업과, 새 버전에서 온라인 저장한 기록을 확인할 수 있어요.</p><div id="recoveryList"></div><p id="recoveryNote" role="status"></p><button type="button" id="recoveryMore">온라인 백업 보기</button> <button type="button" id="recoveryLogin" hidden>로그인하고 온라인 백업 보기</button> <button type="button" id="recoveryClose">닫기</button>';
   document.body.appendChild(recoveryDialog);
   let recoveryCursor = null, recoveryOwner = null;
   const recoveryList = document.getElementById("recoveryList");
   const recoveryNote = document.getElementById("recoveryNote");
   const recoveryMore = document.getElementById("recoveryMore");
+  const recoveryLogin = document.getElementById("recoveryLogin");
+  recoveryLogin.addEventListener("click", ()=>{ recoveryDialog.close(); showLoginGate(); connectCloud(); });
   function addRecoveryRow(label, snap){
     const row = document.createElement("p");
     const title = document.createElement("span"); title.textContent = label + " ";
     const btn = document.createElement("button"); btn.type = "button"; btn.textContent = "복구";
     btn.addEventListener("click", ()=>{
-      if(!currentUser || currentUser.uid !== recoveryOwner) return;
+      if(!currentUser || currentUser.uid !== recoveryOwner){
+        recoveryNote.textContent = "백업을 복구하려면 인터넷에 연결하고 같은 계정으로 로그인해 주세요. 지금 일정은 그대로 있어요.";
+        recoveryLogin.hidden = deviceOffline(); return;
+      }
       if(confirm(label + "\n현재 내용은 보존하고 백업 내용을 추가할까요?")){
         if(restoreRecovery(snap)) recoveryDialog.close();
       }
@@ -4397,6 +4435,7 @@
     recoveryOwner = currentUser && currentUser.uid; recoveryCursor = null;
     recoveryList.replaceChildren(); recoveryMore.hidden = false; recoveryMore.disabled = false;
     recoveryMore.textContent = "온라인 백업 보기"; recoveryNote.textContent = "";
+    recoveryLogin.hidden = true;
     try{
       for(const snap of readRecoveryHistory()){
         addRecoveryRow(`${new Date(snap.at).toLocaleString("ko-KR")} · 이 기기 · 일정 ${(snap.tasks||[]).length}건 / 지출 ${(snap.expenses||[]).length}건`, snap);
@@ -4407,7 +4446,18 @@
   document.getElementById("recoveryClose").addEventListener("click", ()=>recoveryDialog.close());
   recoveryMore.addEventListener("click", async ()=>{
     const owner = recoveryOwner;
-    if(!db || !owner || !currentUser || currentUser.uid !== owner) return;
+    recoveryLogin.hidden = true;
+    if(deviceOffline()){
+      recoveryNote.textContent = "온라인 백업은 인터넷이 연결되어야 볼 수 있어요. 이 기기에 저장된 일정은 그대로 있어요."; return;
+    }
+    if(!currentUser){
+      recoveryNote.textContent = "온라인 백업을 보려면 다시 로그인해 주세요. 이 기기에 저장된 일정은 그대로 있어요.";
+      recoveryLogin.hidden = false; return;
+    }
+    if(!owner || currentUser.uid !== owner){
+      recoveryNote.textContent = "로그인 계정이 바뀌었어요. 창을 닫고 백업 리스트를 다시 열어 주세요."; return;
+    }
+    if(!db){ recoveryNote.textContent = "온라인 연결을 준비하고 있어요. 잠시 후 다시 눌러 주세요."; connectCloud(); return; }
     recoveryMore.disabled = true; recoveryNote.textContent = "온라인 백업을 불러오는 중…";
     try{
       let query = db.collection("users").doc(owner).collection("recovery").orderBy("at", "desc").limit(50);
@@ -4422,7 +4472,9 @@
       recoveryCursor = snap.docs[snap.docs.length-1] || recoveryCursor;
       recoveryMore.hidden = snap.size < 50; recoveryMore.textContent = "이전 온라인 백업 더 보기";
       recoveryNote.textContent = snap.empty ? "더 이상 온라인 백업이 없어요. 온라인 백업은 이 버전으로 저장한 내용부터 남습니다." : "복구할 내용을 골라 주세요.";
-    }catch(e){ recoveryNote.textContent = "온라인 백업을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 눌러 주세요."; }
+    }catch(e){ recoveryNote.textContent = e.code === "permission-denied"
+      ? "온라인 백업 접근이 허용되지 않았어요. 사이트의 백업 권한 설정을 확인해야 해요. 현재 일정은 그대로 있어요."
+      : "온라인 백업을 불러오지 못했어요. 인터넷 연결을 확인한 뒤 다시 눌러 주세요."; }
     finally{ recoveryMore.disabled = false; }
   });
 
