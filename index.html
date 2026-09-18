@@ -3291,6 +3291,9 @@
   });
 
   function openTaskModal(id){
+    // 새 입력창을 열 때 이전 지출의 숨겨진 값도 초기화한다.
+    document.getElementById("taskAmount").value = "";
+    document.getElementById("expMonthly").checked = false;
     // 카테고리 목록은 editingType에 따라 달라지므로 타입부터 정한 뒤 채운다
     editingType = id ? ((tasks.find(x=>x.id===id)||{}).type === "todo" ? "todo" : "event") : "event";
     fillCategorySelect();
