@@ -71,6 +71,7 @@
     --muted:#a2a8b6;       /* soft gray */
     --border:#eef0f4;
     --danger:#f2686b;
+    --holiday-ink:#b83c50;
     --amber:#ffb84f;
     --radius:18px;
     --shadow:0 10px 26px rgba(240,114,143,.12);
@@ -89,6 +90,7 @@
   }
   /* ===== 다크 테마 (data-theme="dark") ===== */
   :root[data-theme="dark"]{
+    --holiday-ink:#f394a3;
     --blue-soft:#3a2530;
     --bg:#0e0f13;
     --card-soft:#1a1c22;
@@ -576,6 +578,23 @@
   .m-cell.sun .m-daynum{color:var(--danger);}
   .m-cell.sat .m-daynum{color:var(--blue);}
   .m-cell.today .m-daynum{background:var(--blue);color:#fff;}
+  /* 공휴일 이름은 일정 막대 위에 별도 공간을 확보한다. */
+  .m-week{--holiday-h:0px;}
+  .m-week.has-holiday{--holiday-h:18px;}
+  .m-holiday{
+    color:var(--holiday-ink);font-size:11px;font-weight:700;line-height:16px;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px;
+  }
+  :root .m-cell.holiday:not(.today) .m-daynum,
+  :root .cal-day.holiday:not(.selected),
+  .week-day.holiday:not(.selected) .dnum{color:var(--holiday-ink);}
+  .week-day.holiday .wd{color:var(--holiday-ink);}
+  .holiday-note{margin:8px 2px 0;font-size:11px;color:var(--muted);line-height:1.5;}
+  .selected-holiday{display:block;margin-top:4px;color:var(--holiday-ink);font-size:13px;font-weight:600;line-height:1.5;}
+  #monthDayHeadText{min-width:0;}
+  @media(max-width:720px){
+    .m-holiday{font-size:10px;padding:0;}
+  }
   .m-bar{
     z-index:1;margin:0 2px;height:calc(var(--lane-h) - 4px);align-self:center;
     border-radius:5px;padding:0 6px;font-size:11px;font-weight:600;line-height:calc(var(--lane-h) - 4px);
@@ -1093,6 +1112,7 @@
         </div>
       </div>
       <div class="month-grid" id="monthGrid"></div>
+      <div class="holiday-note" id="holidayNote"></div>
       <div class="month-daylist-head" id="monthDayHead">
         <span id="monthDayHeadText"></span>
         <button class="day-add-btn" id="dayAddBtn">+ 추가</button>
@@ -1405,6 +1425,42 @@
   const LS_OUTBOX   = "scheduler_outbox_v1";
   const LS_OFFLINE  = "scheduler_offline_profile_v1";
   const WEEKDAYS_KO = ["일","월","화","수","목","금","토"];
+  // 대한민국 전국 공휴일. 확인 기준: 2026-09-21, 근거/갱신 방법: 공휴일_자료.md.
+  // 월력요항 + 2026년 노동절·제헌절 개정 반영. 임시공휴일은 지정 확인 후 추가한다.
+  // 화면 표시 전용: 사용자 일정, 백업, 동기화 데이터에는 넣지 않는다.
+  const KR_HOLIDAYS = {
+    "2026": {
+      "01-01":"신정",
+      "02-16":"설날 연휴", "02-17":"설날", "02-18":"설날 연휴",
+      "03-01":"삼일절", "03-02":"대체공휴일 (삼일절)",
+      "05-01":"노동절", "05-05":"어린이날", "05-24":"부처님오신날", "05-25":"대체공휴일 (부처님오신날)",
+      "06-03":"전국동시지방선거", "06-06":"현충일", "07-17":"제헌절",
+      "08-15":"광복절", "08-17":"대체공휴일 (광복절)",
+      "09-24":"추석 연휴", "09-25":"추석", "09-26":"추석 연휴",
+      "10-03":"개천절", "10-05":"대체공휴일 (개천절)", "10-09":"한글날", "12-25":"성탄절"
+    },
+    "2027": {
+      "01-01":"신정",
+      "02-06":"설날 연휴", "02-07":"설날", "02-08":"설날 연휴", "02-09":"대체공휴일 (설날)",
+      "03-01":"삼일절", "05-01":"노동절", "05-03":"대체공휴일 (노동절)",
+      "05-05":"어린이날", "05-13":"부처님오신날", "06-06":"현충일",
+      "07-17":"제헌절", "07-19":"대체공휴일 (제헌절)",
+      "08-15":"광복절", "08-16":"대체공휴일 (광복절)",
+      "09-14":"추석 연휴", "09-15":"추석", "09-16":"추석 연휴",
+      "10-03":"개천절", "10-04":"대체공휴일 (개천절)", "10-09":"한글날", "10-11":"대체공휴일 (한글날)",
+      "12-25":"성탄절", "12-27":"대체공휴일 (성탄절)"
+    }
+  };
+  function holidayFor(dateStr){ return KR_HOLIDAYS[dateStr.slice(0,4)]?.[dateStr.slice(5)] || ""; }
+  function renderDateHeading(el, date, options){
+    el.textContent = date.toLocaleDateString("ko-KR", options);
+    const holiday = holidayFor(fmt(date));
+    if(holiday){
+      const label = document.createElement("span");
+      label.className = "selected-holiday"; label.textContent = holiday;
+      el.appendChild(label);
+    }
+  }
   const PALETTE = ["#4f7df3","#37c48f","#ffb84f","#f26d6d","#a06cf2","#22b8cf","#ff8fb1","#7c8794"];
 
   const DEFAULT_CATS = [
@@ -2728,6 +2784,9 @@
       const d = new Date(gridStart); d.setDate(gridStart.getDate()+i);
       const el = document.createElement("div");
       el.className = "cal-day";
+      const holiday = holidayFor(fmt(d));
+      el.dataset.date = fmt(d);
+      if(holiday){ el.classList.add("holiday"); el.title = `${fmt(d)} · ${holiday}`; }
       if(d.getMonth()!==month) el.classList.add("other");
       if(sameDay(d,today)) el.classList.add("today");
       if(sameDay(d,selectedDate)) el.classList.add("selected");
@@ -2794,6 +2853,9 @@
       const d = new Date(monday); d.setDate(monday.getDate()+i);
       const el = document.createElement("div");
       el.className = "week-day" + (sameDay(d,selectedDate)?" selected":"");
+      const holiday = holidayFor(fmt(d));
+      el.dataset.date = fmt(d);
+      if(holiday){ el.classList.add("holiday"); el.title = `${fmt(d)} · ${holiday}`; }
       const hasTask = tasksForDate(fmt(d)).length>0;
       el.innerHTML = `<div class="wd">${WEEKDAYS_KO[d.getDay()]}</div><div class="dnum">${d.getDate()}</div>${hasTask?'<div class="dot"></div>':''}`;
       el.addEventListener("click", ()=>{ goToDate(d); renderAll(); });
@@ -2804,7 +2866,7 @@
   // ---------- Header ----------
   function renderHeader(){
     const today = new Date();
-    document.getElementById("subLabel").textContent = selectedDate.toLocaleDateString("ko-KR",{year:"numeric",month:"long",day:"numeric"});
+    renderDateHeading(document.getElementById("subLabel"), selectedDate, {year:"numeric",month:"long",day:"numeric"});
     document.getElementById("mainTitle").textContent = sameDay(selectedDate,today) ? "Today" : selectedDate.toLocaleDateString("ko-KR",{weekday:"long"});
   }
 
@@ -4029,7 +4091,7 @@
     document.getElementById("eventView").style.display    = view==="event"    ? "block" : "none";
     document.getElementById("expenseView").style.display  = view==="expense"  ? "block" : "none";
     if(view==="month"){ renderMonth(); renderMonthList(); }
-    if(view==="timeline") renderTimeline();
+    if(view==="timeline"){ renderWeekStrip(); renderTimeline(); }
     if(view==="todo"){ renderUpNext(todoUpNextEl, "todo");   renderTypeList(todoListEl, "todo"); }
     if(view==="event"){ renderUpNext(eventUpNextEl, "event"); renderTypeList(eventListEl, "event"); }
     if(view==="expense") renderExpenseView();
@@ -4056,6 +4118,9 @@
     monthGrid.appendChild(headRow);
 
     const year = calViewDate.getFullYear(), month = calViewDate.getMonth();
+    document.getElementById("holidayNote").textContent = KR_HOLIDAYS[String(year)]
+      ? "대한민국 공휴일 · 2026–2027년 반영"
+      : `${year}년 공휴일은 아직 반영되지 않았어요.`;
     const startOffset = new Date(year,month,1).getDay();
     const gridStart = new Date(year,month,1-startOffset);
     const today = new Date();
@@ -4129,22 +4194,33 @@
       const laneRows = (maxShownLane+1) + (anyOverflow?1:0);
 
       const week = document.createElement("div");
-      week.className = "m-week";
-      week.style.gridTemplateRows = `var(--daynum-h) repeat(${Math.max(laneRows,1)}, var(--lane-h)) 1fr`;
+      week.className = "m-week" + (ws.some(s=>holidayFor(s)) ? " has-holiday" : "");
+      week.style.gridTemplateRows = `calc(var(--daynum-h) + var(--holiday-h)) repeat(${Math.max(laneRows,1)}, var(--lane-h)) 1fr`;
 
       // 배경 날짜 칸 (전체 행 span, 클릭 시 그 날 선택)
       wd.forEach((d,c)=>{
         const dow=d.getDay();
+        const holiday = holidayFor(ws[c]);
         const cell=document.createElement("div");
         cell.className = "m-cell"
+          + (holiday ? " holiday" : "")
           + (d.getMonth()!==month ? " other" : "")
           + (dow===0 ? " sun" : dow===6 ? " sat" : "")
           + (sameDay(d,today) ? " today" : "")
           + (sameDay(d,selectedDate) ? " selected" : "");
         cell.style.gridColumn = String(c+1);
         cell.style.gridRow = "1 / -1";
+        cell.dataset.date = ws[c];
         const num=document.createElement("div"); num.className="m-daynum"; num.textContent=d.getDate();
         cell.appendChild(num);
+        if(holiday){
+          const label = document.createElement("div");
+          label.className = "m-holiday";
+          label.textContent = holiday.startsWith("대체공휴일") ? "대체공휴일" : holiday;
+          label.title = holiday;
+          cell.title = `${ws[c]} · ${holiday}`;
+          cell.appendChild(label);
+        }
         const daySum = daySums[ws[c]] || 0;   // 그날 지출 합계는 칸 오른쪽 아래
         if(daySum){
           const s=document.createElement("div"); s.className="m-sum"; s.textContent=won(daySum);
@@ -4194,7 +4270,7 @@
   // 월간 뷰: 달력 아래 "선택한 날 일정" 리스트
   const monthDayListEl = document.getElementById("monthDayList");
   function renderMonthList(){
-    document.getElementById("monthDayHeadText").textContent = selectedDate.toLocaleDateString("ko-KR",{month:"long",day:"numeric",weekday:"long"});
+    renderDateHeading(document.getElementById("monthDayHeadText"), selectedDate, {month:"long",day:"numeric",weekday:"long"});
     renderTimeline(monthDayListEl);
   }
   document.getElementById("dayAddBtn").addEventListener("click", ()=> openTaskModal(null));
