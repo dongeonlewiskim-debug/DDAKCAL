@@ -1,5 +1,5 @@
 // 앱 화면은 기기에 보관한다. 사용자 데이터·로그인 응답은 캐시하지 않는다.
-const CACHE = "ddakcal-v14";
+const CACHE = "ddakcal-v15";
 const ASSETS = ["./", "./index.html", "./manifest.json", "./logo.png"];
 const SDK = [
   "https://www.gstatic.com/firebasejs/10.12.5/firebase-app-compat.js",

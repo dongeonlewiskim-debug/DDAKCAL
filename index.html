@@ -278,8 +278,7 @@
   .sdk-msg{margin-top:5px;font-size:10px;font-weight:700;color:var(--sdk-ink);min-height:14px;opacity:.8;}
   .sdk-msg.ok{color:var(--blue);}
   .sdk-msg.err{color:var(--miss);}
-  /* 내보내기/가져오기 — 자주 쓸 게 아니라 텍스트 링크처럼 조용하게 */
-  .data-btns{display:flex;flex-direction:column;gap:1px;}
+  /* 연결 문제가 있을 때만 보이는 다시 연결 버튼 */
   .data-btn{
     border:none;background:none;color:var(--muted);opacity:.6;text-align:left;
     font-family:inherit;font-size:11.5px;font-weight:600;
@@ -287,8 +286,6 @@
     transition:opacity .12s ease,color .12s ease,background .12s ease;
   }
   .data-btn:hover{opacity:1;color:var(--blue);background:var(--card-soft);}
-  .data-btn.undo{color:var(--miss);opacity:.85;}          /* 되돌릴 게 있을 때만 보임 */
-  .data-btn.undo:hover{color:var(--miss);background:var(--miss-bg);opacity:1;}
   .recovery-dialog::backdrop{background:rgba(0,0,0,.35);}
   .recovery-dialog h2{margin:0 0 14px;font-size:22px;}
   .recovery-dialog p{line-height:1.6;overflow-wrap:anywhere;}
@@ -297,6 +294,31 @@
   .recovery-dialog button:disabled{opacity:.5;cursor:wait;}
   .recovery-dialog #recoveryList p{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 0;border-bottom:1px solid var(--border);}
   .recovery-dialog #recoveryList button{flex-shrink:0;}
+  .settings-btn{
+    display:flex;align-items:center;gap:8px;align-self:flex-start;
+    border:0;border-radius:10px;padding:10px 12px;background:var(--card-soft);
+    color:var(--text);font:inherit;font-size:13px;font-weight:600;cursor:pointer;
+  }
+  .settings-btn:hover{background:var(--blue-soft);}
+  .settings-dialog{
+    --settings-muted:#697080;
+    width:min(440px,calc(100vw - 32px));max-height:calc(100dvh - 32px);overflow:auto;
+    margin:auto;padding:22px;border:1px solid var(--border);border-radius:18px;
+    background:var(--surface);color:var(--text);
+  }
+  :root[data-theme="dark"] .settings-dialog{--settings-muted:#adb3c2;}
+  .settings-head{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:22px;}
+  .settings-head h2{margin:0;}
+  .settings-head button{width:40px;height:40px;padding:0;font-size:20px;}
+  .settings-section + .settings-section{margin-top:20px;padding-top:20px;border-top:1px solid var(--border);}
+  .settings-section h3{margin:0 0 10px;font-size:13px;font-weight:600;color:var(--settings-muted);}
+  .settings-dialog .settings-action{
+    display:flex;align-items:center;justify-content:space-between;gap:12px;width:100%;
+    margin-top:6px;padding:13px 14px;border:0;text-align:left;
+  }
+  .settings-action b{display:block;font-size:14px;font-weight:600;}
+  .settings-action small{display:block;margin-top:5px;font-size:12px;line-height:1.5;color:var(--settings-muted);}
+  .settings-action .chevron{flex:none;color:var(--muted);font-size:20px;}
   .ghost-btn{
     flex:none;border:none;background:var(--card-soft);color:var(--muted);
     padding:10px 6px;border-radius:11px;font-size:12px;cursor:pointer;font-weight:600;
@@ -775,17 +797,16 @@
     .date-block .main-title{font-size:32px;}
     /* 모바일: 큰 월간 달력이 있으니 사이드바 미니 달력은 숨김(중복 방지) */
     #miniCalBlock{display:none;}
-    /* 모바일: 카테고리 영역 + 내보내기/가져오기 숨김 (로그아웃은 유지) */
+    /* 모바일: 카테고리 영역은 숨기고 데이터 관리는 설정에서 연다. */
     #catSection{display:none;}
-    /* 모바일 사이드바는 상단 띠일 뿐 — 여백 줄이고 로그아웃은 작은 알약으로 우측 정렬 */
+    /* 모바일 사이드바는 상단 띠일 뿐 — 저장 상태와 설정을 우측 정렬 */
     .sidebar{padding:14px 20px;gap:8px;}
     .user-greeting{margin-top:0;}
     .sidebar-footer{margin-top:0;align-items:flex-end;gap:4px;}
     /* 폰에선 사이드바가 상단 가로줄이라 스도쿠 자리가 없다 — 데스크톱 전용 */
     .egg,.sdk-panel{display:none!important;}
     .ghost-btn{flex:none;padding:6px 14px;font-size:12px;border-radius:9px;}
-    /* 모바일 사이드바는 상단 띠라 세로로 쌓으면 답답함 → 한 줄로 눕히고 우측 정렬 */
-    .data-btns{flex-direction:row;gap:2px;}
+    .settings-btn{align-self:flex-end;padding:9px 12px;}
     .data-btn{font-size:11px;padding:5px 8px;}
     /* 모바일: 헤더가 좁으니 검색은 날짜·추가 아래로 한 줄 내려보냄(order로 맨 뒤) */
     .main-header{gap:14px;margin-bottom:22px;}
@@ -1033,17 +1054,9 @@
     </div>
 
     <div class="sidebar-footer">
-      <div class="data-btns">
-        <button class="data-btn" id="exportBtn">데이터 내보내기</button>
-        <button class="data-btn" id="importBtn">데이터 가져오기</button>
-        <button class="data-btn" id="recoveryBtn">백업 리스트</button>
-        <button class="data-btn undo" id="undoImportBtn" style="display:none;">↩ 최근 백업 복구</button>
-        <input type="file" id="importFile" accept="application/json,.json" style="display:none;">
-      </div>
       <div id="saveStatus" role="status" style="font-size:12px;color:var(--muted);padding:6px 8px;">온라인 자료 확인 중…</div>
-      <button class="data-btn" id="syncCheckBtn">기기 간 연동 확인</button>
+      <button class="settings-btn" id="settingsBtn" type="button" aria-haspopup="dialog" aria-controls="settingsDialog"><span aria-hidden="true">⚙</span> 설정</button>
       <button class="data-btn" id="reconnectBtn" hidden>온라인 저장을 위해 다시 로그인</button>
-      <button class="ghost-btn" id="signOutBtn" style="display:none;">로그아웃</button>
       <!-- 이스터에그: 평소엔 거의 안 보이는 점 아홉 개. 누르면 바로 아래에 스도쿠가 펼쳐진다 -->
       <button class="egg" id="sudokuEgg" title="" aria-label="⋯"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></button>
       <div class="sdk-panel" id="sudokuPanel" hidden>
@@ -1145,6 +1158,28 @@
 
   </div>
 </div>
+
+<!-- Settings -->
+<dialog class="recovery-dialog settings-dialog" id="settingsDialog" aria-labelledby="settingsTitle">
+  <div class="settings-head">
+    <h2 id="settingsTitle" tabindex="-1" autofocus>설정</h2>
+    <button type="button" id="settingsClose" aria-label="설정 닫기">×</button>
+  </div>
+  <section class="settings-section" aria-labelledby="dataSettingsTitle">
+    <h3 id="dataSettingsTitle">데이터 관리</h3>
+    <button class="settings-action" id="exportBtn" type="button"><span><b>데이터 내보내기</b><small>일정과 지출을 파일로 보관해요.</small></span><span class="chevron" aria-hidden="true">›</span></button>
+    <button class="settings-action" id="importBtn" type="button"><span><b>데이터 가져오기</b><small>보관한 파일을 불러와요.</small></span><span class="chevron" aria-hidden="true">›</span></button>
+    <button class="settings-action" id="recoveryBtn" type="button"><span><b>백업 리스트</b><small>이전 기록을 골라 복구해요.</small></span><span class="chevron" aria-hidden="true">›</span></button>
+    <input type="file" id="importFile" accept="application/json,.json" hidden>
+  </section>
+  <section class="settings-section" aria-labelledby="helpSettingsTitle">
+    <h3 id="helpSettingsTitle">문제 해결</h3>
+    <button class="settings-action" id="syncCheckBtn" type="button"><span><b>기기 간 연동 확인</b><small>PC와 휴대폰의 저장 상태를 점검해요.</small></span><span class="chevron" aria-hidden="true">›</span></button>
+  </section>
+  <section class="settings-section">
+    <button class="ghost-btn" id="signOutBtn" type="button" style="display:none;">로그아웃</button>
+  </section>
+</dialog>
 
 <!-- Task Modal -->
 <div class="overlay" id="taskOverlay">
@@ -2055,7 +2090,6 @@
     cloudLoaded = false;
     ITEM_COLLS.forEach(c=>{ cloudPartsLoaded[c] = false; }); cloudPartsLoaded.parent = false;
     resetMigration();
-    refreshUndoBtn();
   }
 
   // 세 부분(부모 문서 + tasks + expenses)이 다 들어오면 쓰기를 허용한다
@@ -2625,6 +2659,7 @@
     initGoogleSignIn();
     window.addEventListener("online", initGoogleSignIn);
     if(signOutBtn) signOutBtn.addEventListener("click", ()=>{
+      settingsDialog.close();
       // ⛔ 로그아웃은 이 기기 데이터를 지운다. 방금 한 저장이 아직 클라우드로 못 갔으면
       //    그대로 영영 사라지므로, 먼저 내보내고 나서 지운다. (0.5초 디바운스 때문에 실제로 생기던 구멍)
       const finish = ()=>{
@@ -4418,6 +4453,16 @@
   // 알림 기능은 제거됨(2026-08-20). 탭이 열려 있을 때만 울려서 사실상 못 쓰는 수준이었고,
   // "알림이 온다"고 믿게 만드는 게 없느니만 못했음. 제대로 하려면 서버(푸시)가 필요함.
 
+  // ---------- Settings ----------
+  const settingsDialog = document.getElementById("settingsDialog");
+  document.getElementById("settingsBtn").addEventListener("click", ()=>settingsDialog.showModal());
+  document.getElementById("settingsClose").addEventListener("click", ()=>settingsDialog.close());
+  settingsDialog.addEventListener("click", e=>{
+    if(e.target !== settingsDialog) return;
+    const r = settingsDialog.getBoundingClientRect();
+    if(e.clientX < r.left || e.clientX > r.right || e.clientY < r.top || e.clientY > r.bottom) settingsDialog.close();
+  });
+
   // ---------- 데이터 내보내기 / 가져오기 ----------
   // 클라우드는 '동기화'지 '백업'이 아니다. 실수로 지운 걸 되살릴 수단이 이것뿐이라 파일로 뽑아둘 수 있게 함.
   document.getElementById("exportBtn").addEventListener("click", ()=>{
@@ -4431,15 +4476,6 @@
   });
 
   // 복구는 현재 자료를 지우지 않고 병합한다. 변경 전 복구본도 최근 5개 보존한다.
-  const undoBtn = document.getElementById("undoImportBtn");
-  function refreshUndoBtn(){
-    const el = document.getElementById("undoImportBtn");   // 이른 호출에도 안전하게 매번 조회
-    if(!el) return;
-    const raw = localStorage.getItem(LS_UNDO);
-    if(!raw){ el.style.display = "none"; return; }
-    el.textContent = "↩ 최근 백업 복구";
-    el.style.display = "block";
-  }
   // reason: "import"(가져오기 직전) | "sync"(동기화가 기존 데이터를 지우기 직전)
   function snapshotForUndo(reason){
     try{
@@ -4459,7 +4495,6 @@
         catch(e){ if(history.length <= 1) throw e; history.pop(); }
       }
       localStorage.setItem(LS_UNDO, raw);
-      refreshUndoBtn();
       return true;
     }catch(e){
       console.warn("되돌리기 스냅샷 실패:", e);
@@ -4504,17 +4539,6 @@
     alert(n ? `${n}건을 복구했어요. 기존 내용은 그대로 두었어요. 온라인 저장은 계속 진행됩니다.` : "이미 같은 내용이 있어 추가하지 않았어요.");
     return true;
   }
-  undoBtn.addEventListener("click", ()=>{
-    const raw = localStorage.getItem(LS_UNDO);
-    if(!raw) return;
-    let snap;
-    try{ snap = JSON.parse(raw); }catch(e){ localStorage.removeItem(LS_UNDO); refreshUndoBtn(); return; }
-    const when = snap.at ? new Date(snap.at).toLocaleString("ko-KR",{month:"long",day:"numeric",hour:"2-digit",minute:"2-digit"}) : "";
-    if(!confirm(`${when} 백업에서 일정 ${(snap.tasks||[]).length}건, 지출 ${(snap.expenses||[]).length}건을 확인합니다.\n현재 내용은 지우지 않고, 다른 내용은 복구본으로 추가합니다.\n복구할까요?`)) return;
-    restoreRecovery(snap);
-  });
-  refreshUndoBtn();
-
   // 온라인 복구 기록은 일반 일정과 별도 문서이며, 이 화면에서는 삭제하지 않는다.
   const recoveryDialog = document.createElement("dialog");
   recoveryDialog.className = "recovery-dialog";
@@ -4544,15 +4568,26 @@
     row.append(title, btn); recoveryList.appendChild(row);
   }
   document.getElementById("recoveryBtn").addEventListener("click", ()=>{
+    settingsDialog.close();
     recoveryOwner = currentUser && currentUser.uid; recoveryCursor = null;
     recoveryList.replaceChildren(); recoveryMore.hidden = false; recoveryMore.disabled = false;
     recoveryMore.textContent = "온라인 백업 보기"; recoveryNote.textContent = "";
     recoveryLogin.hidden = true;
+    let snapshots = [];
+    try{ snapshots = readRecoveryHistory().filter(s=>s && (Array.isArray(s.tasks) || Array.isArray(s.expenses))); }
+    catch(e){ recoveryNote.textContent = "이 기기의 일부 백업을 읽지 못했어요. 온라인 백업도 확인해 주세요."; }
+    // 예전 '최근 백업 복구'에만 있던 자료도 목록에서 복구할 수 있게 한다. 원본은 수정하지 않는다.
     try{
-      for(const snap of readRecoveryHistory()){
-        addRecoveryRow(`${new Date(snap.at).toLocaleString("ko-KR")} · 이 기기 · 일정 ${(snap.tasks||[]).length}건 / 지출 ${(snap.expenses||[]).length}건`, snap);
+      const legacy = JSON.parse(localStorage.getItem(LS_UNDO) || "null");
+      if(legacy && (Array.isArray(legacy.tasks) || Array.isArray(legacy.expenses))){
+        const content = s=>JSON.stringify([s.tasks,s.expenses,s.categories,s.expenseCats]);
+        if(!snapshots.some(s=>content(s) === content(legacy))) snapshots.unshift(legacy);
       }
-    }catch(e){ recoveryNote.textContent = "이 기기의 백업을 읽지 못했어요. 온라인 백업을 확인해 주세요."; }
+    }catch(e){ recoveryNote.textContent = "이 기기의 일부 백업을 읽지 못했어요. 온라인 백업도 확인해 주세요."; }
+    for(const snap of snapshots){
+      const when = snap.at ? new Date(snap.at).toLocaleString("ko-KR") : "이전 백업";
+      addRecoveryRow(`${when} · 이 기기 · 일정 ${(snap.tasks||[]).length}건 / 지출 ${(snap.expenses||[]).length}건`, snap);
+    }
     recoveryDialog.showModal();
   });
   document.getElementById("recoveryClose").addEventListener("click", ()=>recoveryDialog.close());
@@ -4731,7 +4766,7 @@
       }
     }
   }
-  document.getElementById("syncCheckBtn").addEventListener("click", ()=>{ syncCheckDialog.showModal(); runSyncCheck(); });
+  document.getElementById("syncCheckBtn").addEventListener("click", ()=>{ settingsDialog.close(); syncCheckDialog.showModal(); runSyncCheck(); });
   syncCheckAgain.addEventListener("click", runSyncCheck);
   syncCheckDialog.addEventListener("close", ()=>{ syncCheckRun++; syncCheckReport.value=""; });
   document.getElementById("syncCheckClose").addEventListener("click", ()=>syncCheckDialog.close());
@@ -4742,7 +4777,7 @@
   });
 
   const importFile = document.getElementById("importFile");
-  document.getElementById("importBtn").addEventListener("click", ()=> importFile.click());
+  document.getElementById("importBtn").addEventListener("click", ()=>{ settingsDialog.close(); importFile.click(); });
   importFile.addEventListener("change", ()=>{
     const f = importFile.files && importFile.files[0];
     importFile.value = "";                  // 같은 파일을 연속으로 골라도 change가 뜨도록
