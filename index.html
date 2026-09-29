@@ -3168,8 +3168,7 @@
     renderDayExpenses(cont, dateStr);
   }
   // ── 곧 할 것 (리스트 맨 위 고정 박스) ───────────────────────────────
-  // 전체 리스트는 "먼 미래가 위"로 정렬돼 있어서, 5·6월 일정을 미리 적어두면
-  // 정작 오늘 할 일이 맨 밑으로 밀린다. 그래서 오늘~7일치를 따로 위에 뽑아 보여준다.
+  // 오늘부터 7일 동안의 미처리 항목을 전체 목록 위에 따로 보여준다.
   const UPNEXT_DAYS = 7;
   function renderUpNext(cont, type){
     const today = new Date(), todayStr = fmt(today);
@@ -3225,9 +3224,12 @@
   // 할일/일정 전체를 날짜별로 묶어 리스트로 (달력 아님)
   function renderTypeList(cont, type){
     cont.innerHTML = "";
+    const handled = t=>isDone(t, t.date) || isMissed(t, t.date);
     const items = tasks
       .filter(t=> (t.type||"event")===type && activeCatFilter.has(t.category))
       .sort((a,b)=>{
+        const statusOrder = Number(handled(a)) - Number(handled(b));
+        if(statusOrder) return statusOrder;                // 체크·X 표시한 항목은 목록 맨 아래
         if(!a.date !== !b.date) return a.date ? 1 : -1;   // "날짜 없음"은 항상 맨 위
         // 일정은 날짜가 이른 순서로 읽는다. 할일 탭의 기존 정렬은 유지한다.
         return (type === "event" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date))
@@ -3237,8 +3239,17 @@
       cont.innerHTML = `<div class="empty-state"><div class="big">${type==="todo"?"✅":"📅"}</div>${type==="todo"?"등록된 할일이 없어요.":"등록된 일정이 없어요."}</div>`;
       return;
     }
-    let lastDate = null;
+    let lastDate = null, lastHandled = false;
     items.forEach(t=>{
+      const isHandled = handled(t);
+      if(isHandled && !lastHandled){
+        const heading = document.createElement("div");
+        heading.className = "list-date-head";
+        heading.textContent = "완료·못함";
+        cont.appendChild(heading);
+        lastDate = null;   // 같은 날짜여도 미처리 항목과 별도로 날짜 제목을 표시한다.
+      }
+      lastHandled = isHandled;
       const dateStr = t.date;
       if(dateStr !== lastDate){
         lastDate = dateStr;
