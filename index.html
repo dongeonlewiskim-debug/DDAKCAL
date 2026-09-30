@@ -3312,8 +3312,8 @@
         const statusOrder = Number(handled(a)) - Number(handled(b));
         if(statusOrder) return statusOrder;                // 체크·X 표시한 항목은 목록 맨 아래
         if(!a.date !== !b.date) return a.date ? 1 : -1;   // "날짜 없음"은 항상 맨 위
-        // 일정은 날짜가 이른 순서로 읽는다. 할일 탭의 기존 정렬은 유지한다.
-        return (type === "event" ? a.date.localeCompare(b.date) : b.date.localeCompare(a.date))
+        // 일정·할일 모두 날짜가 이른 순서로 읽는다.
+        return a.date.localeCompare(b.date)
             || dayTaskCompare(a,b);                       // 같은 날 안에서는 원래 순서(시간·수동정렬)
       });
     if(items.length===0){
