@@ -472,6 +472,9 @@
   .check.checked{background:var(--blue);border-color:var(--blue);}
   /* 못 함(✕) — 완료(회색)와 구분되게 차분한 빨강 + 물결 취소선 */
   .check.missed{background:var(--miss);border-color:var(--miss);}
+  .task-status-effect{
+    position:fixed;width:220px;height:220px;pointer-events:none;z-index:49;
+  }
   .task-card h3{margin:0;font-size:16px;font-weight:800;word-break:break-word;line-height:1.35;}
   .task-card.done h3{text-decoration:line-through;color:var(--muted);}
   .task-card.missed h3{text-decoration:line-through wavy var(--miss);color:var(--muted);}
@@ -3021,11 +3024,89 @@
         </div>
       </div>`;
   }
+  // 직접 누른 체크칸에만 표시한다. 저장·동기화 및 renderAll에서는 효과를 재생하지 않는다.
+  const taskStatusEffects = (()=>{
+    let cleanup = null;
+    function stop(){
+      const end = cleanup; cleanup = null;
+      if(end) end();
+    }
+    function play(kind, point, checkbox){
+      try{
+        stop();
+        if(!kind || !point || document.hidden || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+        const canvas = document.createElement('canvas');
+        const ctx = canvas.getContext('2d');
+        if(!ctx) return;
+        const size = 220, center = size/2, dpr = Math.min(window.devicePixelRatio || 1, 2);
+        canvas.className = 'task-status-effect';
+        canvas.setAttribute('aria-hidden', 'true');
+        canvas.width = canvas.height = Math.round(size*dpr);
+        canvas.style.left = `${point.x-center}px`;
+        canvas.style.top = `${point.y-center}px`;
+        ctx.setTransform(dpr,0,0,dpr,0,0);
+        let frame = 0, pulse = null;
+        cleanup = ()=>{
+          cancelAnimationFrame(frame);
+          if(pulse) pulse.cancel();
+          canvas.remove();
+        };
+        document.body.appendChild(canvas);
+        if(kind === 'missed' && checkbox && checkbox.animate){
+          pulse = checkbox.animate([{transform:'scale(1)'},{transform:'scale(1.13)'},{transform:'scale(1)'}], {duration:450,easing:'ease-out'});
+        }
+        const colors = kind === 'done' ? ['#f0728f','#ffce78','#b89aff','#f5b0c0'] : ['#d49398','#b17d83','#e5b1b0'];
+        const duration = kind === 'done' ? 650 : 450, start = performance.now();
+        function tick(now){
+          try{
+            const t = Math.min(1,(now-start)/duration), fade = Math.pow(1-t,1.15);
+            ctx.clearRect(0,0,size,size);
+            if(kind === 'done'){
+              for(let i=0;i<18;i++){
+                const angle = -Math.PI*.94+(i/17)*Math.PI*.88;
+                const reach = 42+((i*29)%51), spread = 1-Math.exp(-4*t);
+                const x = center+Math.cos(angle)*reach*spread, y = center+Math.sin(angle)*reach*spread+58*t*t;
+                ctx.save(); ctx.globalAlpha = fade; ctx.translate(x,y); ctx.rotate(i*1.4+t*(i%2?7:-6));
+                ctx.fillStyle = colors[i%4]; ctx.fillRect(-2,-3,4,5+(i%3)); ctx.restore();
+              }
+            }else{
+              const ease = 1-Math.pow(1-t,3);
+              for(let i=0;i<7;i++){
+                const side = i%2?-1:1, reach = 13+(i*7)%18;
+                const x = center+side*reach*ease, y = center+4+(i%3)*5+43*t*t;
+                ctx.save(); ctx.globalAlpha = fade; ctx.translate(x,y); ctx.rotate(i*.8+t*side*2.1);
+                ctx.fillStyle = colors[i%3]; ctx.fillRect(-1.7,-2.2,3.4,4.4); ctx.restore();
+              }
+            }
+            if(t<1) frame = requestAnimationFrame(tick); else stop();
+          }catch(e){ stop(); } // 효과가 실패해도 이미 저장한 체크 상태에는 영향이 없다.
+        }
+        frame = requestAnimationFrame(tick);
+      }catch(e){ stop(); }
+    }
+    // 사용자의 스크롤만 취소한다. 목록 정렬에 따른 브라우저의 자동 스크롤은 효과를 끊지 않는다.
+    window.addEventListener('wheel',stop,{passive:true});
+    window.addEventListener('touchmove',stop,{passive:true});
+    window.addEventListener('resize',stop);
+    document.addEventListener('visibilitychange',()=>{if(document.hidden) stop();});
+    return {play};
+  })();
   function attachTaskListeners(cont){
     cont.querySelectorAll(".check").forEach(el=>{
       el.addEventListener("click", ()=>{
         const t = tasks.find(x=>x.id===el.dataset.id);
+        if(!t) return;
+        const dateStr = el.dataset.date;
+        const effect = isDone(t,dateStr) ? 'missed' : isMissed(t,dateStr) ? null : 'done';
+        let point = null;
+        try{
+          const rect = el.getBoundingClientRect();
+          point = {x:rect.left+rect.width/2,y:rect.top+rect.height/2};
+        }catch(e){}
         cycleStatus(t, el.dataset.date); saveTasks(); renderAll();
+        // renderAll이 체크칸을 새로 만들므로 X의 작은 반동에는 새 요소를 사용한다.
+        const checkbox = Array.from(cont.querySelectorAll('.check')).find(node=>node.dataset.id===t.id && node.dataset.date===dateStr);
+        taskStatusEffects.play(effect,point,checkbox);
       });
     });
     cont.querySelectorAll(".edit").forEach(el=>{
