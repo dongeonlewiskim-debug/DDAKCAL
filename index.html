@@ -242,6 +242,8 @@
   .egg:hover,.egg:focus-visible{opacity:.55;}
   .egg span{background:var(--muted);border-radius:1px;}
   .egg:hover span{background:var(--blue);}
+  .games-bottom{display:none;}
+  .mini-games{min-width:0;}
   .game-buttons{display:flex;align-items:center;gap:10px;}
   .mine-launch{margin-top:10px;border:0;background:none;color:var(--muted);font:inherit;font-size:16px;cursor:pointer;opacity:.55;min-width:32px;min-height:32px;}
   .mine-launch:hover,.mine-launch:focus-visible{opacity:1;}
@@ -830,8 +832,15 @@
     .sidebar{padding:14px 20px;gap:8px;}
     .user-greeting{margin-top:0;}
     .sidebar-footer{margin-top:0;align-items:flex-end;gap:4px;}
-    /* 폰에선 사이드바가 상단 가로줄이라 스도쿠 자리가 없다 — 데스크톱 전용 */
-    .egg,.sdk-panel{display:none!important;}
+    /* 좁은 화면에서는 두 게임을 본문 아래로 옮기고 스도쿠도 표시한다. */
+    .games-bottom{display:block;padding:0 20px 28px;}
+    .mini-games{width:100%;max-width:320px;margin:0 auto;}
+    .game-buttons{min-height:44px;}
+    .egg{width:44px;height:44px;padding:12px;margin-top:0;opacity:.45;}
+    .sdk-nums button{min-height:36px;}
+    .sdk-mini{min-height:32px;}
+    .sdk-cell{font-size:16px;}
+    .mine-panel{width:100%;}
     .ghost-btn{flex:none;padding:6px 14px;font-size:12px;border-radius:9px;}
     .settings-btn{align-self:flex-end;padding:9px 12px;}
     .data-btn{font-size:11px;padding:5px 8px;}
@@ -1085,6 +1094,7 @@
       <button class="settings-btn" id="settingsBtn" type="button" aria-haspopup="dialog" aria-controls="settingsDialog"><span aria-hidden="true">⚙</span> 설정</button>
       <button class="data-btn" id="reconnectBtn" hidden>온라인 저장을 위해 다시 로그인</button>
       <!-- 이스터에그: 평소엔 거의 안 보이는 점 아홉 개. 누르면 바로 아래에 스도쿠가 펼쳐진다 -->
+      <div id="miniGames" class="mini-games">
       <div class="game-buttons">
         <button class="egg" id="sudokuEgg" title="스도쿠" aria-label="스도쿠"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></button>
         <button class="mine-launch" id="mineOpen" type="button" title="지뢰찾기" aria-label="지뢰찾기" aria-expanded="false" aria-controls="minePanel">💣</button>
@@ -1113,6 +1123,7 @@
   <p id="mineMessage" class="mine-message" role="status" aria-live="polite"></p>
   <p class="mine-help">숫자는 주변 8칸의 지뢰 개수예요. 첫 칸과 바로 주변은 안전해요.<br>깃발: 우클릭 · 길게 누르기 · 깃발 모드 / 키보드: 방향키 이동, Enter 열기, F 깃발<br>접으면 일시정지해요. 최고 기록은 이 기기에만 저장돼요.</p>
 </div>
+      </div>
     </div>
   </div>
 
@@ -1199,6 +1210,7 @@
     </div>
 
   </div>
+  <div id="gamesBottom" class="games-bottom"></div>
 </div>
 
 <!-- Settings -->
@@ -2645,6 +2657,18 @@
     document.getElementById('mineClose').addEventListener('click',()=>close());
     document.getElementById('sudokuEgg').addEventListener('click',()=>close(false));
     document.addEventListener('visibilitychange',()=>{cancelHold();document.hidden?pause():resume();});
+  })();
+
+  // 같은 게임 DOM을 옮겨 진행 중인 판과 이벤트를 유지한다. 좁은 화면은 본문 맨 아래.
+  (function positionMiniGames(){
+    const games=document.getElementById('miniGames');
+    const sidebar=games.parentElement,bottom=document.getElementById('gamesBottom');
+    const narrow=window.matchMedia('(max-width:720px)');
+    function place(){
+      const target=narrow.matches?bottom:sidebar;
+      if(games.parentElement!==target) target.appendChild(games);
+    }
+    place();narrow.addEventListener('change',place);
   })();
 
   function showLoginGate(){ const g=document.getElementById("loginGate"); if(g) g.classList.remove("hidden"); }
