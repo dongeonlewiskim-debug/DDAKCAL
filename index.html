@@ -245,26 +245,27 @@
   .game-buttons{display:flex;align-items:center;gap:10px;}
   .mine-launch{margin-top:10px;border:0;background:none;color:var(--muted);font:inherit;font-size:16px;cursor:pointer;opacity:.55;min-width:32px;min-height:32px;}
   .mine-launch:hover,.mine-launch:focus-visible{opacity:1;}
-  .mine-dialog{width:min(480px,calc(100% - 24px));max-height:calc(100dvh - 24px);box-sizing:border-box;overflow:auto;padding:22px;border:1px solid var(--border);border-radius:22px;background:var(--surface);color:var(--text);box-shadow:var(--shadow);}
-  .mine-dialog::backdrop{background:#0008;}
+  .mine-panel[hidden]{display:none;}
+  .mine-panel{width:100%;min-width:0;margin-top:10px;opacity:.62;transition:opacity .2s;color:var(--sdk-ink);}
+  .mine-panel:hover,.mine-panel:focus-within{opacity:1;}
   .mine-head,.mine-tools,.mine-stats{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;}
-  .mine-head h2{margin:0;font-size:20px;}
-  .mine-dialog button,.mine-dialog select{font:inherit;}
-  .mine-control{border:1px solid var(--border);background:var(--card-soft);color:var(--text);border-radius:10px;padding:9px 12px;min-height:40px;cursor:pointer;}
+  .mine-head h2{margin:0;font-size:10px;letter-spacing:.06em;opacity:.7;}
+  .mine-panel button,.mine-panel select{font:inherit;}
+  .mine-control{border:1px solid transparent;background:var(--card-soft);color:var(--sdk-ink);border-radius:7px;padding:3px 6px;font-size:10px!important;font-weight:700!important;cursor:pointer;}
   .mine-control[aria-pressed="true"]{background:var(--sel-tint);border-color:var(--blue);color:var(--blue);}
-  .mine-tools{margin:18px 0 12px;}
-  .mine-stats{color:var(--muted);font-size:12px;margin-bottom:14px;font-variant-numeric:tabular-nums;}
-  .mine-grid{display:grid;gap:3px;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation;}
-  .mine-cell{aspect-ratio:1;min-width:0;padding:0;border:1px solid var(--border);border-radius:5px;background:var(--card-soft);color:var(--text);font-weight:800!important;font-size:16px;cursor:pointer;}
+  .mine-tools{margin:6px 0;gap:4px;}
+  .mine-stats{color:var(--sdk-ink);font-size:10px;margin-bottom:6px;gap:4px;font-variant-numeric:tabular-nums;}
+  .mine-grid{display:grid;gap:1px;border:1px solid var(--sdk-box);border-radius:7px;overflow:hidden;user-select:none;-webkit-user-select:none;-webkit-touch-callout:none;touch-action:manipulation;}
+  .mine-cell{aspect-ratio:1;min-width:0;padding:0;border:1px solid var(--sdk-line);border-radius:2px;background:var(--card-soft);color:var(--sdk-ink);font-weight:800!important;font-size:12px!important;cursor:pointer;}
   .mine-cell.open{background:var(--surface);border-color:transparent;cursor:default;}
   .mine-cell[data-number="1"]{color:var(--blue);}
   .mine-cell[data-number="2"]{color:#2fa36f;}
   .mine-cell[data-number="3"],.mine-cell.hit{color:var(--miss);}
   .mine-cell[data-number="4"],.mine-cell[data-number="5"],.mine-cell[data-number="6"]{color:#a06cf2;}
   .mine-cell.hit{background:var(--miss-bg);border-color:var(--miss);}
-  .mine-message{font-size:14px;min-height:22px;margin:16px 0 6px;color:var(--text);}
-  .mine-help{font-size:12px;line-height:1.6;color:var(--muted);margin:0;}
-  @media(max-width:720px){.mine-launch{margin-top:0;min-width:44px;min-height:44px;}.mine-dialog{padding:16px;}.mine-grid{gap:2px;}.mine-cell{font-size:14px;}.mine-control{min-height:44px;}}
+  .mine-message{font-size:10px;min-height:14px;margin:6px 0;color:var(--sdk-ink);}
+  .mine-help{font-size:10px;line-height:1.6;color:var(--sdk-ink);margin:0;}
+  @media(max-width:720px){.mine-launch{margin-top:0;min-width:44px;min-height:44px;}.mine-panel{width:min(320px,calc(100vw - 40px));}.mine-control{min-height:36px;}}
 
   /* 사이드바 안에 그대로 들어간다 — 달력을 띄워둔 채로 하는 게 목적이라 팝업이면 안 된다 */
   .sdk-panel[hidden]{display:none;}
@@ -1086,7 +1087,7 @@
       <!-- 이스터에그: 평소엔 거의 안 보이는 점 아홉 개. 누르면 바로 아래에 스도쿠가 펼쳐진다 -->
       <div class="game-buttons">
         <button class="egg" id="sudokuEgg" title="스도쿠" aria-label="스도쿠"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></button>
-        <button class="mine-launch" id="mineOpen" type="button" title="지뢰찾기" aria-label="지뢰찾기" aria-haspopup="dialog" aria-controls="mineDialog">💣</button>
+        <button class="mine-launch" id="mineOpen" type="button" title="지뢰찾기" aria-label="지뢰찾기" aria-expanded="false" aria-controls="minePanel">💣</button>
       </div>
       <div class="sdk-panel" id="sudokuPanel" hidden>
         <div class="sdk-top">
@@ -1100,6 +1101,18 @@
         <div class="sdk-nums" id="sdkNums"></div>
         <div class="sdk-msg" id="sdkMsg"></div>
       </div>
+<div id="minePanel" class="mine-panel" aria-labelledby="mineTitle" hidden>
+  <div class="mine-head"><h2 id="mineTitle">MINES</h2><button id="mineClose" class="mine-control" type="button" aria-label="지뢰찾기 닫기">✕</button></div>
+  <div class="mine-tools">
+    <select id="mineLevel" class="mine-control" aria-label="지뢰찾기 난이도"><option value="easy">초급</option><option value="medium">중급</option></select>
+    <button id="mineFlag" class="mine-control" type="button" aria-pressed="false">🚩 깃발</button>
+    <button id="mineNew" class="mine-control" type="button">새로</button>
+  </div>
+  <div class="mine-stats"><span id="mineRemaining"></span><span id="mineTime">0초</span><span id="mineBest"></span></div>
+  <div id="mineGrid" class="mine-grid" role="group" aria-label="지뢰찾기 게임판"></div>
+  <p id="mineMessage" class="mine-message" role="status" aria-live="polite"></p>
+  <p class="mine-help">숫자는 주변 8칸의 지뢰 개수예요. 첫 칸과 바로 주변은 안전해요.<br>깃발: 우클릭 · 길게 누르기 · 깃발 모드 / 키보드: 방향키 이동, Enter 열기, F 깃발<br>접으면 일시정지해요. 최고 기록은 이 기기에만 저장돼요.</p>
+</div>
     </div>
   </div>
 
@@ -1475,18 +1488,7 @@
   </div>
 </div>
 
-<dialog id="mineDialog" class="mine-dialog" aria-labelledby="mineTitle">
-  <div class="mine-head"><h2 id="mineTitle">💣 지뢰찾기</h2><button id="mineClose" class="mine-control" type="button" aria-label="지뢰찾기 닫기">✕</button></div>
-  <div class="mine-tools">
-    <select id="mineLevel" class="mine-control" aria-label="지뢰찾기 난이도"><option value="easy">초급 · 9×9</option><option value="medium">중급 · 12×12</option></select>
-    <button id="mineFlag" class="mine-control" type="button" aria-pressed="false">🚩 깃발 모드</button>
-    <button id="mineNew" class="mine-control" type="button">새 게임</button>
-  </div>
-  <div class="mine-stats"><span id="mineRemaining"></span><span id="mineTime">0초</span><span id="mineBest"></span></div>
-  <div id="mineGrid" class="mine-grid" role="group" aria-label="지뢰찾기 게임판"></div>
-  <p id="mineMessage" class="mine-message" role="status" aria-live="polite"></p>
-  <p class="mine-help">숫자는 주변 8칸의 지뢰 개수예요. 첫 칸과 바로 주변은 안전해요.<br>깃발: 우클릭 · 길게 누르기 · 깃발 모드 / 키보드: 방향키 이동, Enter 열기, F 깃발<br>창을 닫으면 일시정지해요. 최고 기록은 이 기기에만 저장돼요.</p>
-</dialog>
+
 <script>
 (function(){
   "use strict";
@@ -2553,7 +2555,7 @@
 
   // 지뢰찾기는 일정 데이터·Firebase와 독립적이다. 최고 기록만 별도 기기 저장소를 쓴다.
   (function minesweeper(){
-    const dialog=document.getElementById('mineDialog'),grid=document.getElementById('mineGrid');
+    const panel=document.getElementById('minePanel'),grid=document.getElementById('mineGrid');
     const level=document.getElementById('mineLevel'),flagButton=document.getElementById('mineFlag');
     const message=document.getElementById('mineMessage'),time=document.getElementById('mineTime');
     const presets={easy:{size:9,mines:10},medium:{size:12,mines:24}},key='ddakcal_mines_best_v1';
@@ -2564,7 +2566,7 @@
     function seconds(){return Math.floor((elapsed+(runningSince===null?0:performance.now()-runningSince))/1000);}
     function clock(){time.textContent=seconds()+'초';}
     function pause(){if(runningSince!==null){elapsed+=performance.now()-runningSince;runningSince=null;}clearInterval(timer);timer=null;clock();}
-    function resume(){if(started&&!ended&&dialog.open&&!document.hidden&&runningSince===null){runningSince=performance.now();timer=setInterval(clock,250);}}
+    function resume(){if(started&&!ended&&!panel.hidden&&!document.hidden&&runningSince===null){runningSince=performance.now();timer=setInterval(clock,250);}}
     function neighbors(i){
       const a=[],r=Math.floor(i/size),c=i%size;
       for(let dr=-1;dr<=1;dr++)for(let dc=-1;dc<=1;dc++)if((dr||dc)&&r+dr>=0&&r+dr<size&&c+dc>=0&&c+dc<size)a.push((r+dr)*size+c+dc);
@@ -2628,14 +2630,20 @@
       const offset={ArrowUp:-size,ArrowDown:size,ArrowLeft:-1,ArrowRight:1}[e.key];
       if(offset){e.preventDefault();grid.children[(i+offset+cells.length)%cells.length].focus();}
     });
-    // 게임 키 입력이 뒤쪽 스도쿠·달력 단축키로 넘어가지 않게 한다. Escape는 기본 닫기 유지.
-    dialog.addEventListener('keydown',e=>e.stopPropagation());
+    // 게임 키 입력이 뒤쪽 스도쿠·달력 단축키로 넘어가지 않게 한다. Escape로 패널을 접는다.
+    panel.addEventListener('keydown',e=>{e.stopPropagation();if(e.key==='Escape'){e.preventDefault();close();}});
     flagButton.addEventListener('click',()=>{flagMode=!flagMode;flagButton.setAttribute('aria-pressed',String(flagMode));message.textContent=flagMode?'칸을 누르면 깃발을 놓거나 해제해요.':'칸을 누르면 열려요.';});
     function reset(next){if(started&&!ended&&!confirm('진행 중인 게임을 끝내고 새로 시작할까요?')){level.value=difficulty;return;}fresh(next);}
     level.addEventListener('change',()=>reset(level.value));document.getElementById('mineNew').addEventListener('click',()=>reset(difficulty));
-    document.getElementById('mineOpen').addEventListener('click',()=>{if(!cells.length)fresh(difficulty);if(!dialog.open)dialog.showModal();resume();});
-    document.getElementById('mineClose').addEventListener('click',()=>dialog.close());
-    dialog.addEventListener('close',()=>{cancelHold();pause();});
+    function close(focus=true){panel.hidden=true;document.getElementById('mineOpen').setAttribute('aria-expanded','false');cancelHold();pause();if(focus)document.getElementById('mineOpen').focus();}
+    document.getElementById('mineOpen').addEventListener('click',()=>{
+      if(!panel.hidden){close();return;}
+      if(!cells.length)fresh(difficulty);
+      document.getElementById('sudokuPanel').hidden=true;
+      panel.hidden=false;document.getElementById('mineOpen').setAttribute('aria-expanded','true');resume();
+    });
+    document.getElementById('mineClose').addEventListener('click',()=>close());
+    document.getElementById('sudokuEgg').addEventListener('click',()=>close(false));
     document.addEventListener('visibilitychange',()=>{cancelHold();document.hidden?pause():resume();});
   })();
 
