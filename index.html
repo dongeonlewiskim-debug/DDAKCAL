@@ -245,6 +245,22 @@
   .games-bottom{display:none;}
   .mini-games{min-width:0;}
   .game-buttons{display:flex;align-items:center;gap:10px;}
+  .tiles-launch{font-size:10px!important;font-weight:800!important;letter-spacing:-.5px;}
+  .tiles-panel[hidden]{display:none;}
+  .tiles-panel{margin-top:10px;opacity:.62;transition:opacity .2s;color:var(--sdk-ink);}
+  .tiles-panel:hover,.tiles-panel:focus-within{opacity:1;}
+  .tiles-stats{display:flex;justify-content:space-between;gap:8px;font-size:11px;margin:8px 0;font-variant-numeric:tabular-nums;}
+  .tiles-board{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:5px;padding:5px;border:1px solid var(--sdk-box);border-radius:8px;touch-action:none;user-select:none;-webkit-user-select:none;}
+  .tiles-cell{aspect-ratio:1;display:flex;align-items:center;justify-content:center;min-width:0;border-radius:5px;background:var(--card-soft);color:var(--sdk-ink);font-size:22px;font-weight:800;line-height:1;}
+  .tiles-cell[data-value="4"]{background:var(--sel-tint);color:var(--blue);}
+  .tiles-cell.hot{background:var(--blue);color:#fff;}
+  .tiles-cell.large{font-size:16px;}
+  .tiles-cell.pop{animation:tile-pop .13s ease-out;}
+  @keyframes tile-pop{from{transform:scale(.85);}to{transform:scale(1);}}
+  @media(prefers-reduced-motion:reduce){.tiles-cell.pop{animation:none;}}
+  .tiles-directions{display:flex;gap:4px;margin:8px 0;}
+  .tiles-directions button{flex:1;min-height:32px;}
+  @media(max-width:720px){.tiles-directions button{min-height:44px;}}
   .mine-launch{margin-top:10px;border:0;background:none;color:var(--muted);font:inherit;font-size:16px;cursor:pointer;opacity:.55;min-width:32px;min-height:32px;}
   .mine-launch:hover,.mine-launch:focus-visible{opacity:1;}
   .mine-panel[hidden]{display:none;}
@@ -1098,6 +1114,7 @@
       <div class="game-buttons">
         <button class="egg" id="sudokuEgg" title="스도쿠" aria-label="스도쿠"><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span><span></span></button>
         <button class="mine-launch" id="mineOpen" type="button" title="지뢰찾기" aria-label="지뢰찾기" aria-expanded="false" aria-controls="minePanel">💣</button>
+        <button class="mine-launch tiles-launch" id="tilesOpen" type="button" title="2048" aria-label="2048" aria-expanded="false" aria-controls="tilesPanel">2048</button>
       </div>
       <div class="sdk-panel" id="sudokuPanel" hidden>
         <div class="sdk-top">
@@ -1110,6 +1127,15 @@
         <div class="sdk-grid" id="sdkGrid"></div>
         <div class="sdk-nums" id="sdkNums"></div>
         <div class="sdk-msg" id="sdkMsg"></div>
+      </div>
+      <div id="tilesPanel" class="tiles-panel" aria-labelledby="tilesTitle" hidden>
+        <div class="sdk-top"><span class="t" id="tilesTitle">2048</span><button class="sdk-mini" id="tilesNew" type="button">새로</button><button class="sdk-mini" id="tilesClose" type="button" aria-label="2048 접기">✕</button></div>
+        <div class="tiles-stats"><span id="tilesScore">점수 0</span><span id="tilesBest">최고 0</span></div>
+        <div id="tilesBoard" class="tiles-board" role="group" tabindex="0" aria-label="2048 게임판. 방향키로 숫자를 합치세요."></div>
+        <div class="tiles-directions"><button class="sdk-mini" data-slide="left" type="button" aria-label="왼쪽으로 밀기">←</button><button class="sdk-mini" data-slide="up" type="button" aria-label="위로 밀기">↑</button><button class="sdk-mini" data-slide="down" type="button" aria-label="아래로 밀기">↓</button><button class="sdk-mini" data-slide="right" type="button" aria-label="오른쪽으로 밀기">→</button></div>
+        <p class="sdk-msg" id="tilesMessage" role="status" aria-live="polite">같은 숫자를 합쳐 2048을 만들어봐요.</p>
+        <button class="sdk-mini" id="tilesContinue" type="button" hidden>계속하기</button>
+        <p class="mine-help">방향키 · 스와이프 · 화살표 버튼<br>게임판 밖에서는 평소처럼 스크롤할 수 있어요.<br>최고 점수는 이 기기에만 저장돼요.</p>
       </div>
 <div id="minePanel" class="mine-panel" aria-labelledby="mineTitle" hidden>
   <div class="mine-head"><h2 id="mineTitle">MINES</h2><button id="mineClose" class="mine-control" type="button" aria-label="지뢰찾기 닫기">✕</button></div>
@@ -2656,7 +2682,71 @@
     });
     document.getElementById('mineClose').addEventListener('click',()=>close());
     document.getElementById('sudokuEgg').addEventListener('click',()=>close(false));
+    document.getElementById('tilesOpen').addEventListener('click',()=>close(false));
     document.addEventListener('visibilitychange',()=>{cancelHold();document.hidden?pause():resume();});
+  })();
+
+  // 2048: 게임 상태는 메모리, 최고 점수만 별도 기기 저장소. 일정·동기화 함수는 호출하지 않는다.
+  (function tiles2048(){
+    const panel=document.getElementById('tilesPanel'),board=document.getElementById('tilesBoard');
+    const opener=document.getElementById('tilesOpen'),message=document.getElementById('tilesMessage');
+    const more=document.getElementById('tilesContinue'),key='ddakcal_2048_best_v1';
+    let cells=[],score=0,best=0,won=false,paused=false,over=false,gesture=null,storageFailed=false;
+    try{const value=Number(localStorage.getItem(key));if(Number.isSafeInteger(value)&&value>=0)best=value;}catch(e){}
+    function spawn(){const empty=cells.map((v,i)=>v===0?i:-1).filter(i=>i>=0);if(!empty.length)return -1;const i=empty[Math.floor(Math.random()*empty.length)];cells[i]=Math.random()<.9?2:4;return i;}
+    function movable(){return cells.some((v,i)=>!v||(i%4<3&&v===cells[i+1])||(i<12&&v===cells[i+4]));}
+    function paint(fresh=-1){
+      board.replaceChildren();cells.forEach((value,i)=>{
+        const tile=document.createElement('div');tile.className='tiles-cell'+(value>=8?' hot':'')+(value>=1024?' large':'')+(i===fresh?' pop':'');tile.dataset.value=value;
+        tile.textContent=value||'';tile.setAttribute('aria-label',`${Math.floor(i/4)+1}행 ${i%4+1}열, ${value||'빈 칸'}`);board.appendChild(tile);
+      });
+      document.getElementById('tilesScore').textContent='점수 '+score;
+      document.getElementById('tilesBest').textContent='최고 '+best;more.hidden=!paused;
+      message.textContent=paused?'2048 성공! 계속 도전할 수도 있어요.':over?'더 움직일 칸이 없어요. 새 판에 도전해봐요.':'같은 숫자를 합쳐 2048을 만들어봐요.';
+      if(storageFailed)message.textContent+=' 최고 점수는 저장하지 못했어요.';
+    }
+    function fresh(){cells=Array(16).fill(0);score=0;won=false;paused=false;over=false;gesture=null;storageFailed=false;spawn();spawn();paint();}
+    function move(direction){
+      if(!cells.length||paused||over)return;
+      const next=cells.slice();let gain=0;
+      for(let line=0;line<4;line++){
+        const indices=Array.from({length:4},(_,n)=>direction==='left'?line*4+n:direction==='right'?line*4+3-n:direction==='up'?n*4+line:(3-n)*4+line);
+        const values=indices.map(i=>cells[i]).filter(Boolean),merged=[];
+        for(let n=0;n<values.length;n++){
+          if(values[n]===values[n+1]){const v=values[n]*2;merged.push(v);gain+=v;n++;}else merged.push(values[n]);
+        }
+        indices.forEach((i,n)=>{next[i]=merged[n]||0;});
+      }
+      if(next.every((v,i)=>v===cells[i])){over=!movable();if(over)paint();return;}
+      cells=next;score+=gain;
+      if(score>best){best=score;try{localStorage.setItem(key,String(best));storageFailed=false;}catch(e){storageFailed=true;}}
+      const added=spawn();over=!movable();
+      if(!won&&cells.some(v=>v>=2048)){won=true;paused=true;}
+      paint(added);
+    }
+    function close(focus=false){panel.hidden=true;opener.setAttribute('aria-expanded','false');gesture=null;if(focus)opener.focus();}
+    opener.addEventListener('click',()=>{
+      if(!panel.hidden){close(true);return;}
+      document.getElementById('sudokuPanel').hidden=true;
+      if(!cells.length)fresh();panel.hidden=false;opener.setAttribute('aria-expanded','true');board.focus({preventScroll:true});
+    });
+    ['sudokuEgg','mineOpen'].forEach(id=>document.getElementById(id).addEventListener('click',()=>close()));
+    document.getElementById('tilesClose').addEventListener('click',()=>close(true));
+    document.getElementById('tilesNew').addEventListener('click',()=>{if(!over&&cells.some(Boolean)&&!confirm('진행 중인 2048을 끝내고 새로 시작할까요?'))return;fresh();board.focus({preventScroll:true});});
+    more.addEventListener('click',()=>{paused=false;paint();board.focus({preventScroll:true});});
+    panel.querySelectorAll('[data-slide]').forEach(b=>b.addEventListener('click',()=>move(b.dataset.slide)));
+    panel.addEventListener('keydown',e=>{
+      e.stopPropagation();const direction={ArrowLeft:'left',ArrowRight:'right',ArrowUp:'up',ArrowDown:'down'}[e.key];
+      if(direction){e.preventDefault();move(direction);}else if(e.key==='Escape'){e.preventDefault();close(true);}
+    });
+    board.addEventListener('pointerdown',e=>{if(!e.isPrimary||(e.pointerType==='mouse'&&e.button!==0)){gesture=null;return;}gesture={id:e.pointerId,x:e.clientX,y:e.clientY};board.setPointerCapture(e.pointerId);board.focus({preventScroll:true});});
+    board.addEventListener('pointerup',e=>{
+      if(!gesture||e.pointerId!==gesture.id)return;
+      const dx=e.clientX-gesture.x,dy=e.clientY-gesture.y;gesture=null;
+      if(Math.max(Math.abs(dx),Math.abs(dy))<24)return;
+      move(Math.abs(dx)>Math.abs(dy)?(dx>0?'right':'left'):(dy>0?'down':'up'));
+    });
+    ['pointercancel','lostpointercapture'].forEach(name=>board.addEventListener(name,()=>{gesture=null;}));
   })();
 
   // 같은 게임 DOM을 옮겨 진행 중인 판과 이벤트를 유지한다. 좁은 화면은 본문 맨 아래.
