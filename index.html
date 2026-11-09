@@ -816,7 +816,7 @@
     font-size:13px;font-weight:700;color:var(--text);cursor:pointer;}
   .imp-check input{width:auto;margin:0;transform:scale(1.15);accent-color:var(--danger);cursor:pointer;}
   .dt-line{display:flex;gap:10px;}
-  .dt-line > input{flex:1;min-width:0;}
+  .dt-line > input,.dt-line > select{flex:1;min-width:0;}
   .dt-tilde{text-align:center;color:var(--muted);font-weight:800;margin:7px 0;font-size:13px;}
   .task-imp{color:var(--danger);font-weight:900;margin-right:4px;}
   .color-picker{display:flex;gap:8px;flex-wrap:wrap;}
@@ -1347,12 +1347,12 @@
       <label id="taskDateLabel">일시</label>
       <div class="dt-line">
         <input type="date" id="taskDate">
-        <input type="time" id="taskTime" class="timeInput">
+        <select id="taskTime" class="timeInput" aria-label="시작 시간"></select>
       </div>
       <div class="dt-tilde" id="dtTilde">~</div>
       <div class="dt-line" id="endLine">
         <input type="date" id="taskEndDate">
-        <input type="time" id="taskEndTime" class="timeInput">
+        <select id="taskEndTime" class="timeInput" aria-label="종료 시간"></select>
       </div>
     </div>
     <div class="field field-check" id="allDayField">
@@ -3920,9 +3920,9 @@
       document.getElementById("taskImportant").checked = !!t.important;
       document.getElementById("taskLocation").value = t.location || "";
       document.getElementById("taskDate").value = t.date;
-      document.getElementById("taskTime").value = t.time || "";
+      setTimeValue("taskTime", t.time || "");
       document.getElementById("taskEndDate").value = t.endDate || t.date;
-      document.getElementById("taskEndTime").value = t.endTime || "";
+      setTimeValue("taskEndTime", t.endTime || "");
       // 할일은 저장할 때 allDay를 강제로 true로 박는다(시간 개념이 없어서). 그건 사용자가 고른 게 아니다.
       // 그대로 체크해두면 일정으로 바꿨을 때 '종일'이 켜진 채 드러나서 시간 입력칸이 숨겨진다.
       document.getElementById("taskAllDay").checked = (t.type === "todo") ? false : !!t.allDay;
@@ -3943,9 +3943,9 @@
       document.getElementById("taskImportant").checked = false;
       document.getElementById("taskLocation").value = "";
       document.getElementById("taskDate").value = fmt(selectedDate);
-      document.getElementById("taskTime").value = "";
+      setTimeValue("taskTime", "");
       document.getElementById("taskEndDate").value = fmt(selectedDate);
-      document.getElementById("taskEndTime").value = "";
+      setTimeValue("taskEndTime", "");
       document.getElementById("taskAllDay").checked = false;
       document.getElementById("taskDesc").value = "";
       taskCategorySel.value = categories[0].id;
@@ -4400,8 +4400,8 @@
     document.getElementById("taskLocation").value = p.location;
     document.getElementById("taskDate").value = p.date;
     document.getElementById("taskEndDate").value = p.endDate || p.date;
-    document.getElementById("taskTime").value = p.time;
-    document.getElementById("taskEndTime").value = p.endTime;
+    setTimeValue("taskTime", p.time);
+    setTimeValue("taskEndTime", p.endTime);
     document.getElementById("taskAllDay").checked = p.allDay;
     taskCategorySel.value = p.category;
     repeatTypeSel.value = p.repeat.type;
@@ -5010,6 +5010,35 @@
   document.querySelectorAll("[data-legal]").forEach(btn=>btn.addEventListener("click",()=>showLegal(btn.dataset.legal,btn)));
   document.getElementById("legalClose").addEventListener("click",()=>legalDialog.close());
   legalDialog.addEventListener("close",()=>{legalContent.replaceChildren();if(legalOpener?.isConnected)legalOpener.focus();});
+
+  // ---------- 시간 선택: 30분 단위 목록 ----------
+  // 값은 기존과 같은 "HH:MM". 예전에 저장된 30분 단위가 아닌 시간은 수정 시 목록에 임시로 추가해 보존한다.
+  function timeLabel(v){
+    const [h,m] = v.split(":").map(Number);
+    return (h<12?"오전 ":"오후 ") + ((h%12)||12) + ":" + String(m).padStart(2,"0");
+  }
+  function fillTimeOptions(sel){
+    const opts = [new Option("시간 없음","")];
+    for(let i=0;i<48;i++){
+      const v = String(Math.floor(i/2)).padStart(2,"0") + ":" + (i%2?"30":"00");
+      opts.push(new Option(timeLabel(v), v));
+    }
+    sel.replaceChildren(...opts);
+  }
+  function setTimeValue(id, v){
+    const sel = document.getElementById(id);
+    if(!sel.options.length || sel.dataset.extra) fillTimeOptions(sel), delete sel.dataset.extra;
+    v = v || "";
+    if(v && /^\d{2}:\d{2}$/.test(v) && ![...sel.options].some(o=>o.value===v)){
+      const opt = new Option(timeLabel(v), v);
+      const after = [...sel.options].find(o=>o.value && o.value > v);
+      sel.insertBefore(opt, after || null);
+      sel.dataset.extra = "1";
+    }
+    sel.value = v;
+  }
+  fillTimeOptions(document.getElementById("taskTime"));
+  fillTimeOptions(document.getElementById("taskEndTime"));
 
   // ---------- 데이터 내보내기 / 가져오기 ----------
   // 클라우드는 '동기화'지 '백업'이 아니다. 실수로 지운 걸 되살릴 수단이 이것뿐이라 파일로 뽑아둘 수 있게 함.
