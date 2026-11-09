@@ -376,16 +376,16 @@
     display:flex;justify-content:space-between;align-items:center;gap:20px;
     margin-bottom:28px;flex-wrap:wrap;
   }
-  .date-block{flex:none;border:0;background:none;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;}
-  .db-pill{display:inline-flex;align-items:center;gap:12px;background:var(--card-soft);border:1.5px solid var(--border);
+  .date-block{flex:0 1 auto;max-width:100%;min-width:0;border:0;background:none;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .db-pill{display:inline-flex;max-width:100%;align-items:center;gap:12px;background:var(--card-soft);border:1.5px solid var(--border);
     border-radius:999px;padding:7px 24px 7px 22px;transition:border-color .15s ease;}
   .db-n{font-size:42px;font-weight:900;color:var(--blue);letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums;
     padding-bottom:2px;}
-  .db-r{display:flex;flex-direction:column;justify-content:center;gap:2px;}
+  .db-r{display:flex;flex-direction:column;justify-content:center;gap:2px;min-width:0;}
   .db-ym{font-size:12.5px;color:var(--muted);font-weight:700;line-height:1.25;}
-  .db-w{display:flex;align-items:center;gap:6px;font-size:18px;color:var(--text);font-weight:800;line-height:1.25;letter-spacing:-.02em;white-space:nowrap;}
+  .db-w{display:flex;flex-wrap:wrap;align-items:center;gap:2px 6px;font-size:18px;color:var(--text);font-weight:800;line-height:1.25;letter-spacing:-.02em;white-space:nowrap;}
   .db-badge{font-size:11px;font-weight:800;color:#fff;background:var(--blue);padding:2px 8px;border-radius:999px;letter-spacing:0;}
-  .db-hol{font-size:12px;color:var(--holiday-ink);font-weight:700;letter-spacing:0;}
+  .db-hol{font-size:12px;color:var(--holiday-ink);font-weight:700;letter-spacing:0;white-space:normal;}   /* 좁으면 다음 줄로 */
   .date-block:hover .db-pill{border-color:var(--blue);}
   .date-block:focus-visible{outline:none;}
   .date-block:focus-visible .db-pill{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft);}
@@ -830,6 +830,10 @@
     font-size:13px;font-weight:700;color:var(--text);cursor:pointer;}
   .imp-check input{width:auto;margin:0;transform:scale(1.15);accent-color:var(--danger);cursor:pointer;}
   .dt-line{display:flex;gap:10px;}
+  .field-head{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-bottom:6px;}
+  .field-head label{margin-bottom:0;}
+  .date-clear{border:0;background:none;color:var(--blue);font:inherit;font-size:12.5px;font-weight:700;padding:2px 4px;cursor:pointer;}
+  .date-clear:hover{text-decoration:underline;}
   .dt-line > input,.dt-line > select{flex:1;min-width:0;}
   .dt-tilde{text-align:center;color:var(--muted);font-weight:800;margin:7px 0;font-size:13px;}
   .task-imp{color:var(--danger);font-weight:900;margin-right:4px;}
@@ -1360,7 +1364,7 @@
       <input type="text" id="taskLocation" placeholder="예: 강남역 스타벅스 (선택)">
     </div>
     <div class="field">
-      <label id="taskDateLabel">일시</label>
+      <div class="field-head"><label id="taskDateLabel">일시</label><button type="button" class="date-clear" id="clearDateBtn" hidden>날짜 지우기</button></div>
       <div class="dt-line">
         <input type="date" id="taskDate">
         <select id="taskTime" class="timeInput" aria-label="시작 시간"></select>
@@ -3890,6 +3894,7 @@
       document.getElementById("endLine").style.display = "none";
       document.getElementById("taskTime").style.display = "none";
       document.getElementById("taskDateLabel").textContent = "날짜";
+      document.getElementById("clearDateBtn").hidden = true;
       document.getElementById("repeatIntervalField").style.display = "none";
       document.getElementById("repeatDaysField").style.display = "none";
       document.getElementById("repeatEndField").style.display = "none";
@@ -3905,6 +3910,7 @@
     document.getElementById("taskTime").style.display = todo ? "none" : "";
     document.getElementById("taskEndTime").style.display = todo ? "none" : "";
     document.getElementById("taskDateLabel").textContent = todo ? "기간 (비워두면 날짜 없음)" : "일시";
+    document.getElementById("clearDateBtn").hidden = !todo;   // 일정은 날짜가 꼭 필요해서 할일에서만
     if(todo){
       repeatFieldEl.style.display = "none";
       repeatIntervalField.style.display = "none";
@@ -4019,6 +4025,11 @@
   // 추가 버튼 하나: 비어 있으면 빈 입력창, 내용이 있으면 읽은 내용을 채운 입력창(qaRun)
   function openBlankAdd(){ currentView==="expense" ? openExpenseModal(null) : openTaskModal(null); }
   document.getElementById("cancelTaskBtn").addEventListener("click", closeTaskModal);
+  // 할일의 시작·종료 날짜를 한 번에 비운다 → '날짜 없음'으로 저장
+  document.getElementById("clearDateBtn").addEventListener("click", ()=>{
+    document.getElementById("taskDate").value = "";
+    document.getElementById("taskEndDate").value = "";
+  });
   // 바깥을 눌러 닫기 — 단, **누른 곳과 뗀 곳이 둘 다** 바깥이어야 한다.
   // click은 누른 곳과 뗀 곳의 공통 조상에서 나므로, 입력칸에서 글자를 드래그하다가
   // 팝업 밖에서 손을 떼면 target이 오버레이가 돼서 적던 내용이 통째로 날아갔다.
