@@ -376,9 +376,19 @@
     display:flex;justify-content:space-between;align-items:center;gap:20px;
     margin-bottom:28px;flex-wrap:wrap;
   }
-  .date-block{flex:none;}
-  .date-block .sub{color:var(--muted);font-size:14px;margin-bottom:6px;font-weight:500;}
-  .date-block .main-title{font-size:38px;margin:0;font-weight:800;letter-spacing:-.03em;line-height:1;}
+  .date-block{flex:none;border:0;background:none;padding:0;margin:0;font:inherit;color:inherit;text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent;}
+  .db-pill{display:inline-flex;align-items:center;gap:12px;background:var(--card-soft);border:1.5px solid var(--border);
+    border-radius:999px;padding:7px 24px 7px 22px;transition:border-color .15s ease;}
+  .db-n{font-size:42px;font-weight:900;color:var(--blue);letter-spacing:-.05em;line-height:1;font-variant-numeric:tabular-nums;
+    padding-bottom:2px;}
+  .db-r{display:flex;flex-direction:column;justify-content:center;gap:2px;}
+  .db-ym{font-size:12.5px;color:var(--muted);font-weight:700;line-height:1.25;}
+  .db-w{display:flex;align-items:center;gap:6px;font-size:18px;color:var(--text);font-weight:800;line-height:1.25;letter-spacing:-.02em;white-space:nowrap;}
+  .db-badge{font-size:11px;font-weight:800;color:#fff;background:var(--blue);padding:2px 8px;border-radius:999px;letter-spacing:0;}
+  .db-hol{font-size:12px;color:var(--holiday-ink);font-weight:700;letter-spacing:0;}
+  .date-block:hover .db-pill{border-color:var(--blue);}
+  .date-block:focus-visible{outline:none;}
+  .date-block:focus-visible .db-pill{border-color:var(--blue);box-shadow:0 0 0 3px var(--blue-soft);}
   .add-task-btn{
     background:var(--blue);color:#fff;border:none;padding:12px 20px;
     border-radius:14px;font-size:14px;font-weight:700;cursor:pointer;
@@ -639,7 +649,7 @@
     background-image:linear-gradient(var(--sel-tint), var(--sel-tint));
   }
   /* 오늘 = 칸 테두리 분홍. border 대신 inset 그림자라 칸 크기가 안 밀림 */
-  .m-cell.today{box-shadow:inset 0 0 0 2px var(--blue);}
+  .m-cell.selected{box-shadow:inset 0 0 0 2px var(--blue);}
   .m-daynum{
     font-size:13px;font-weight:700;color:var(--text);
     width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:50%;
@@ -730,12 +740,16 @@
     padding:9px 16px;border-radius:11px;cursor:pointer;box-shadow:var(--shadow-blue);flex:none;
   }
   .day-add-btn:hover{background:var(--blue-deep);}
+  #dayAddBtn{background:none;color:var(--blue);box-shadow:none;padding:6px 4px;font-size:13px;}
+  #dayAddBtn:hover{background:none;text-decoration:underline;}
   #monthDayList{position:relative;}
 
   @media (max-width:720px){
     .month-grid{--daynum-h:26px;--lane-h:19px;}
     .m-cell{min-height:max(52px, calc((100dvh - 280px) / 6));padding:4px 2px 0;}
     .m-bar{font-size:11px;padding:0 5px;margin:0 1px;}
+    .m-bar .m-time{display:none;}   /* 좁은 칸: 시간 대신 제목을 보여준다 */
+    .m-bar{padding:0 3px;text-overflow:clip;}
     .m-sum{font-size:9px;right:3px;}
   }
 
@@ -842,13 +856,19 @@
     .app{grid-template-columns:minmax(0,1fr);}
     .sidebar{border-right:none;border-bottom:1px solid var(--border);}
     .main{padding:24px 20px;}
-    .date-block .main-title{font-size:32px;}
     /* 모바일: 큰 월간 달력이 있으니 사이드바 미니 달력은 숨김(중복 방지) */
     #miniCalBlock{display:none;}
     /* 모바일: 카테고리 영역은 숨기고 데이터 관리는 설정에서 연다. */
     #catSection{display:none;}
     /* 모바일 사이드바는 상단 띠일 뿐 — 저장 상태와 설정을 우측 정렬 */
-    .sidebar{padding:14px 20px;gap:8px;}
+    .sidebar{padding:10px 16px;gap:8px;flex-direction:row;align-items:center;flex-wrap:wrap;}
+    .sidebar > div:first-child{flex:none;}
+    .logo-row{gap:8px;}
+    .theme-toggle{width:32px;height:32px;font-size:15px;}
+    .user-greeting{display:none!important;}
+    .sidebar-footer{flex-direction:row!important;align-items:center!important;margin-left:auto;flex-wrap:wrap;justify-content:flex-end;}
+    #saveStatus{font-size:11px!important;padding:0 2px!important;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:42vw;}
+    #reconnectBtn{flex-basis:100%;}
     .user-greeting{margin-top:0;}
     .sidebar-footer{margin-top:0;align-items:flex-end;gap:4px;}
     /* 좁은 화면에서는 두 게임을 본문 아래로 옮기고 스도쿠도 표시한다. */
@@ -861,7 +881,7 @@
     .sdk-cell{font-size:16px;}
     .mine-panel{width:100%;}
     .ghost-btn{flex:none;padding:6px 14px;font-size:12px;border-radius:9px;}
-    .settings-btn{align-self:flex-end;padding:9px 12px;}
+    .settings-btn{align-self:center;padding:7px 10px;font-size:12px;}
     .data-btn{font-size:11px;padding:5px 8px;}
     /* 모바일: 헤더가 좁으니 검색은 날짜·추가 아래로 한 줄 내려보냄(order로 맨 뒤) */
     .main-header{gap:14px;margin-bottom:22px;}
@@ -1205,18 +1225,14 @@
   <!-- Main -->
   <div class="main">
     <div class="main-header">
-      <div class="date-block">
-        <div class="sub" id="subLabel"></div>
-        <!-- h1이 아닌 div: 페이지의 대표 제목(h1)은 로그인 화면의 서비스 소개가 맡음 -->
-        <div class="main-title" id="mainTitle">Today</div>
-      </div>
+      <!-- 선택한 날짜. 누르면 오늘로 돌아간다. (페이지의 대표 제목 h1은 로그인 화면의 서비스 소개가 맡음) -->
+      <button type="button" class="date-block" id="dateBlock"></button>
       <div class="sync-note" id="syncNote" style="display:none;"></div>
       <div class="find-bar">
         <span class="find-ico">🔍</span>
         <input type="text" id="findInput" placeholder="일정 · 할일 · 지출 찾기" autocomplete="off">
         <button id="findClear" title="지우기" style="display:none;">✕</button>
       </div>
-      <button class="add-task-btn" id="addTaskBtn">+ 추가</button>
     </div>
 
     <div class="view-toggle">
@@ -1229,7 +1245,7 @@
 
     <div class="qa-bar">
       <textarea id="qaInput" rows="1" placeholder="예: 내일 오후 3시 팀회의" autocomplete="off"></textarea>
-      <button id="qaBtn">추가</button>
+      <button id="addTaskBtn" type="button">+ 추가</button>
     </div>
     <div class="qa-hint" id="qaHint">줄바꿈하면 여러 개 한번에</div>
 
@@ -1256,7 +1272,7 @@
       <div class="holiday-note" id="holidayNote"></div>
       <div class="month-daylist-head" id="monthDayHead">
         <span id="monthDayHeadText"></span>
-        <button class="day-add-btn" id="dayAddBtn">+ 추가</button>
+        <button class="day-add-btn" id="dayAddBtn">+ 이 날에 추가</button>
       </div>
       <div class="timeline" id="monthDayList"></div>
     </div>
@@ -3328,8 +3344,15 @@
   // ---------- Header ----------
   function renderHeader(){
     const today = new Date();
-    renderDateHeading(document.getElementById("subLabel"), selectedDate, {year:"numeric",month:"long",day:"numeric"});
-    document.getElementById("mainTitle").textContent = sameDay(selectedDate,today) ? "Today" : selectedDate.toLocaleDateString("ko-KR",{weekday:"long"});
+    const d = selectedDate, isToday = sameDay(d,today), holiday = holidayFor(fmt(d));
+    const weekday = d.toLocaleDateString("ko-KR",{weekday:"long"});
+    const block = document.getElementById("dateBlock");
+    block.innerHTML = `<span class="db-pill"><span class="db-n">${d.getDate()}</span><span class="db-r">`
+      + `<span class="db-ym">${d.getFullYear()}년 ${d.getMonth()+1}월</span>`
+      + `<span class="db-w">${weekday}${isToday?'<span class="db-badge">오늘</span>':''}${holiday?`<span class="db-hol">${escapeHtml(holiday)}</span>`:''}</span>`
+      + `</span></span>`;
+    block.setAttribute("aria-label", d.toLocaleDateString("ko-KR",{year:"numeric",month:"long",day:"numeric",weekday:"long"})
+      + (isToday ? " (오늘)" : ". 누르면 오늘로 이동"));
   }
 
   // ---------- Timeline ----------
@@ -3993,8 +4016,8 @@
   });
 
   // 가계부 탭에서 누르면 바로 지출 입력으로
-  document.getElementById("addTaskBtn").addEventListener("click", ()=>
-    currentView==="expense" ? openExpenseModal(null) : openTaskModal(null));
+  // 추가 버튼 하나: 비어 있으면 빈 입력창, 내용이 있으면 읽은 내용을 채운 입력창(qaRun)
+  function openBlankAdd(){ currentView==="expense" ? openExpenseModal(null) : openTaskModal(null); }
   document.getElementById("cancelTaskBtn").addEventListener("click", closeTaskModal);
   // 바깥을 눌러 닫기 — 단, **누른 곳과 뗀 곳이 둘 다** 바깥이어야 한다.
   // click은 누른 곳과 뗀 곳의 공통 조상에서 나므로, 입력칸에서 글자를 드래그하다가
@@ -4424,7 +4447,7 @@
   }
   function qaRun(){
     const lines = qaInput.value.split("\n").map(x=>x.trim()).filter(Boolean);
-    if(!lines.length) return;
+    if(!lines.length){ openBlankAdd(); return; }
     const parsed = lines.map(qaParse);
     // 한 줄이면 모달이 열리니 제목은 거기서 채우면 된다. 여러 줄을 한꺼번에 넣을 땐
     // 모달이 안 열리므로 제목 없는 줄은 '못 읽음'으로 돌려보낸다(빈 제목 항목이 생기면 안 됨).
@@ -4432,7 +4455,7 @@
     const good = i => !!parsed[i] && (single || !!parsed[i].title);
     const ok  = parsed.filter((_,i)=> good(i));
     const bad = lines.filter((_,i)=> !good(i));
-    if(!ok.length){ qaSay("못 알아들었어요. 예) 8월 15일 오후 3시 팀회의", true); return; }
+    if(!ok.length){ qaSay(""); openBlankAdd(); return; }   // 못 읽은 내용은 입력칸에 남겨두고 빈 입력창을 연다
     if(ok.length === 1 && !bad.length){
       qaInput.value = ""; qaGrow(); qaSay("");
       qaFillModal(ok[0]);                       // 확인 후 저장 버튼 누르면 들어감
@@ -4448,11 +4471,11 @@
     if(first) goToDate(first.date + "T00:00:00");
     renderAll();
   }
-  document.getElementById("qaBtn").addEventListener("click", qaRun);
+  document.getElementById("addTaskBtn").addEventListener("click", qaRun);
   // 폰엔 Shift가 없음 → 터치 기기는 Enter=줄바꿈(제출은 추가 버튼), 데스크톱은 Enter=제출·Shift+Enter=줄바꿈
   const qaTouch = window.matchMedia("(hover:none)").matches;
   qaInput.addEventListener("keydown", (e)=>{
-    if(e.key==="Enter" && !e.shiftKey && !qaTouch){ e.preventDefault(); qaRun(); }
+    if(e.key==="Enter" && !e.shiftKey && !qaTouch && qaInput.value.trim()){ e.preventDefault(); qaRun(); }
   });
   function qaGrow(){ qaInput.style.height = "auto"; qaInput.style.height = (qaInput.scrollHeight + 3) + "px"; }
   qaInput.addEventListener("input", ()=>{
@@ -4798,7 +4821,7 @@
         // 표시(✓/✕/☐/시간)와 제목을 나눔 — 취소선은 제목에만 긋기 위해
         const mark = done ? '✓' : missed ? '✕' : (t.type==='todo' ? '☐' : '');
         const pre = mark || (!seg.multi && t.time ? t.time : '');
-        bar.innerHTML = (pre ? `<span class="m-pre">${pre}</span>` : '')
+        bar.innerHTML = (pre ? `<span class="m-pre${mark?'':' m-time'}">${pre}</span>` : '')
                       + `<span class="m-title">${escapeHtml(t.title)}</span>`;
         bar.title = t.title + (done ? " (완료)" : missed ? " (못함)" : "");
         week.appendChild(bar);
@@ -4832,6 +4855,8 @@
   document.getElementById("monthNext").addEventListener("click", ()=>{
     calViewDate.setMonth(calViewDate.getMonth()+1); renderMonth(); renderMiniCal();
   });
+  // 위쪽 날짜를 누르면 오늘로 (선택 날짜와 달력 모두)
+  document.getElementById("dateBlock").addEventListener("click", ()=>{ goToDate(new Date()); renderAll(); });
   document.getElementById("monthToday").addEventListener("click", ()=>{
     calViewDate = new Date(); renderMonth(); renderMiniCal();
   });
